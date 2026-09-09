@@ -2,16 +2,24 @@
   "source": "UNECE UN/LOCODE",
   "source_version": "2025-1",
   "provenance": "REAL",
-  "observed_at": "2026-09-09T16:02:30.253849+00:00",
+  "observed_at": "2026-09-09T16:11:06.342103+00:00",
   "country_count": 249,
-  "raw_location_rows": 116232,
+  "raw_source_records": 116284,
+  "location_records": 116232,
+  "history_records": 52,
   "canonical_locodes": 116086,
   "duplicate_locode_groups": 139,
   "duplicate_extra_rows": 146,
-  "malformed_rows": 52,
+  "malformed_rows": 0,
+  "record_type_counts": {
+    "COUNTRY": 249,
+    "LOCATION": 116232,
+    "HISTORY": 52,
+    "MALFORMED": 0
+  },
   "coordinate_quality": {
     "VALID": 93166,
-    "MISSING": 23062,
+    "MISSING": 23114,
     "INVALID": 4
   },
   "outputs": {

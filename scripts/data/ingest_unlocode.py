@@ -110,6 +110,64 @@ def record_hash(row: dict[str, str]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def classify_row(row: dict[str, str]) -> str:
+    """
+    UNECE UN/LOCODE contains both current location records and
+    source-history/change records.
+
+    A row is not malformed merely because its location field is blank.
+
+    Supported source row types:
+      COUNTRY
+      LOCATION
+      HISTORY
+    """
+
+    country = clean(row["country"])
+    location = clean(row["location"])
+    name = clean(row["name"])
+    change = clean(row["change"])
+
+    # Country header:
+    # ,AD,,.ANDORRA,,,,,,,,
+    if (
+        country
+        and not location
+        and name.startswith(".")
+    ):
+        return "COUNTRY"
+
+    # Normal location:
+    # ,AD,ALV,Andorra la Vella,...
+    if len(country) == 2 and len(location) == 3:
+        return "LOCATION"
+
+    # UNECE source-history/change rows can have a blank location.
+    # Examples include change code "=" with an existing country/name.
+    #
+    # These rows have a valid 12-column UNECE structure and must be
+    # preserved as source history, not labelled malformed.
+    if (
+        len(country) == 2
+        and not location
+        and (
+            change
+            or name
+            or clean(row["name_wo_diacritics"])
+            or clean(row["subdiv"])
+            or clean(row["function"])
+            or clean(row["status"])
+            or clean(row["date"])
+            or clean(row["iata"])
+            or clean(row["coordinates"])
+            or clean(row["remarks"])
+        )
+    ):
+        return "HISTORY"
+
+    return "MALFORMED"
+
+
 def read_source_rows():
     for filename in PART_FILES:
         path = CSV_ROOT / filename
@@ -135,43 +193,101 @@ def read_source_rows():
                         "file": filename,
                         "line": line_number,
                         "raw": values,
+                        "reason": "EXPECTED_12_FIELDS",
                     }
                     continue
 
-                row = dict(zip(FIELDS, values))
+                row = {
+                    field: clean(value)
+                    for field, value in zip(FIELDS, values)
+                }
 
-                country = clean(row["country"])
-                location = clean(row["location"])
-                name = clean(row["name"])
-
-                if (
-                    country
-                    and not location
-                    and name.startswith(".")
-                ):
-                    yield {
-                        "type": "COUNTRY",
-                        "file": filename,
-                        "line": line_number,
-                        "row": row,
-                    }
-                    continue
-
-                if len(country) == 2 and len(location) == 3:
-                    yield {
-                        "type": "LOCATION",
-                        "file": filename,
-                        "line": line_number,
-                        "row": row,
-                    }
-                    continue
+                row_type = classify_row(row)
 
                 yield {
-                    "type": "MALFORMED",
+                    "type": row_type,
                     "file": filename,
                     "line": line_number,
-                    "raw": values,
+                    "row": row,
                 }
+
+
+def build_source_record(
+    row: dict[str, str],
+    row_type: str,
+    filename: str,
+    line_number: int,
+    observed_at: str,
+):
+    country = clean(row["country"])
+    location = clean(row["location"])
+
+    locode = None
+
+    if len(country) == 2 and len(location) == 3:
+        locode = f"{country}{location}".upper()
+
+    latitude, longitude, coordinate_quality = parse_coordinates(
+        row["coordinates"]
+    )
+
+    source_record_id = hashlib.sha256(
+        (
+            f"{SOURCE}|{SOURCE_VERSION}|"
+            f"{filename}|{line_number}|"
+            f"{record_hash(row)}"
+        ).encode("utf-8")
+    ).hexdigest()
+
+    return {
+        "source_record_id": source_record_id,
+        "record_type": row_type,
+        "locode": locode,
+        "change": optional(row["change"]),
+        "country": optional(row["country"]),
+        "location": optional(row["location"]),
+        "name": optional(row["name"]),
+        "name_wo_diacritics": optional(row["name_wo_diacritics"]),
+        "subdiv": optional(row["subdiv"]),
+        "function": optional(row["function"]),
+        "status": optional(row["status"]),
+        "date": optional(row["date"]),
+        "iata": optional(row["iata"]),
+        "coordinates": optional(row["coordinates"]),
+        "latitude": latitude,
+        "longitude": longitude,
+        "coordinate_quality": coordinate_quality,
+        "remarks": optional(row["remarks"]),
+        "source": SOURCE,
+        "source_version": SOURCE_VERSION,
+        "provenance": PROVENANCE,
+        "source_file": filename,
+        "source_line": line_number,
+        "observed_at": observed_at,
+    }
+
+
+def canonical_sort_key(record):
+    """
+    Deterministic canonical selection.
+
+    This is an ingestion-layer selection rule, NOT an assertion that
+    UNECE defines canonical identity using this exact ordering.
+
+    Preference:
+      1. Latest source date
+      2. Non-empty change code
+      3. Current location record over history
+      4. Deterministic file/line ordering
+    """
+
+    return (
+        record["date"] or "",
+        1 if record["change"] else 0,
+        1 if record["record_type"] == "LOCATION" else 0,
+        record["source_file"],
+        record["source_line"],
+    )
 
 
 def main():
@@ -192,15 +308,25 @@ def main():
         "INVALID": 0,
     }
 
+    record_type_counts = {
+        "COUNTRY": 0,
+        "LOCATION": 0,
+        "HISTORY": 0,
+        "MALFORMED": 0,
+    }
+
     country_seen = set()
 
     for item in read_source_rows():
 
-        if item["type"] == "MALFORMED":
+        record_type = item["type"]
+        record_type_counts[record_type] += 1
+
+        if record_type == "MALFORMED":
             malformed.append(item)
             continue
 
-        if item["type"] == "COUNTRY":
+        if record_type == "COUNTRY":
             row = item["row"]
 
             country = clean(row["country"])
@@ -226,80 +352,44 @@ def main():
 
         row = item["row"]
 
-        country = clean(row["country"])
-        location = clean(row["location"])
-        locode = country + location
-
-        latitude, longitude, coordinate_quality = parse_coordinates(
-            row["coordinates"]
+        source_record = build_source_record(
+            row=row,
+            row_type=record_type,
+            filename=item["file"],
+            line_number=item["line"],
+            observed_at=observed_at,
         )
 
-        coordinate_counts[coordinate_quality] += 1
+        source_records.append(source_record)
 
-        record = {
-            "source_record_id": record_hash(row),
-            "locode": locode,
-            "country": country,
-            "location": location,
-            "name": clean(row["name"]),
-            "name_wo_diacritics": clean(row["name_wo_diacritics"]),
-            "subdivision": optional(row["subdiv"]),
-            "function": clean(row["function"]),
-            "status": clean(row["status"]),
-            "change": optional(row["change"]),
-            "date": optional(row["date"]),
-            "iata": optional(row["iata"]),
-            "coordinates_raw": optional(row["coordinates"]),
-            "latitude": latitude,
-            "longitude": longitude,
-            "coordinate_quality": coordinate_quality,
-            "remarks": optional(row["remarks"]),
-            "source": SOURCE,
-            "source_version": SOURCE_VERSION,
-            "provenance": PROVENANCE,
-            "source_file": item["file"],
-            "source_line": item["line"],
-            "observed_at": observed_at,
-        }
+        coordinate_counts[
+            source_record["coordinate_quality"]
+        ] += 1
 
-        source_records.append(record)
-        by_locode[locode].append(record)
+        locode = source_record["locode"]
 
-    # Canonical record selection.
-    #
-    # UNECE change markers are preserved, but we do not interpret them
-    # as business truth beyond selecting the most recent dated record.
-    #
-    # Selection priority:
-    # 1. highest YYYYMM date
-    # 2. record with a non-empty change marker
-    # 3. source file / line as deterministic tie-breaker
-    #
-    # ALL source records remain preserved separately.
+        # Only actual LOCODE-bearing records participate in canonical
+        # identity selection.
+        if locode:
+            by_locode[locode].append(source_record)
+
     canonical = []
     duplicate_relationships = []
 
     for locode, records in by_locode.items():
 
-        def sort_key(record):
-            date_value = record["date"] or "0000"
-
-            return (
-                date_value,
-                1 if record["change"] else 0,
-                record["source_file"],
-                record["source_line"],
-            )
-
-        ordered = sorted(records, key=sort_key, reverse=True)
-
-        selected = dict(ordered[0])
-        selected["canonical"] = True
-        selected["source_record_count"] = len(records)
+        selected = sorted(
+            records,
+            key=canonical_sort_key,
+            reverse=True,
+        )[0]
 
         canonical.append(selected)
 
-        for record in ordered[1:]:
+        for record in records:
+            if record["source_record_id"] == selected["source_record_id"]:
+                continue
+
             duplicate_relationships.append(
                 {
                     "locode": locode,
@@ -316,16 +406,23 @@ def main():
                 }
             )
 
-    canonical.sort(key=lambda x: x["locode"])
-    countries.sort(key=lambda x: x["country"])
+    canonical.sort(
+        key=lambda x: x["locode"] or ""
+    )
+
+    countries.sort(
+        key=lambda x: x["country"]
+    )
+
     source_records.sort(
         key=lambda x: (
-            x["locode"],
+            x["locode"] or "",
             x["date"] or "",
             x["source_file"],
             x["source_line"],
         )
     )
+
     duplicate_relationships.sort(
         key=lambda x: (
             x["locode"],
@@ -380,11 +477,14 @@ def main():
         "provenance": PROVENANCE,
         "observed_at": observed_at,
         "country_count": len(countries),
-        "raw_location_rows": len(source_records),
+        "raw_source_records": len(source_records),
+        "location_records": record_type_counts["LOCATION"],
+        "history_records": record_type_counts["HISTORY"],
         "canonical_locodes": len(canonical),
         "duplicate_locode_groups": duplicate_groups,
         "duplicate_extra_rows": duplicate_extra_rows,
         "malformed_rows": len(malformed),
+        "record_type_counts": record_type_counts,
         "coordinate_quality": coordinate_counts,
         "outputs": {
             "source_records": str(
@@ -408,8 +508,8 @@ def main():
     quality_path.write_text(
         json.dumps(
             quality,
-            indent=2,
             ensure_ascii=False,
+            indent=2,
         ),
         encoding="utf-8",
     )
@@ -419,7 +519,9 @@ def main():
     print(f"Source                 : {SOURCE}")
     print(f"Version                : {SOURCE_VERSION}")
     print(f"Countries              : {len(countries):,}")
-    print(f"Raw location rows      : {len(source_records):,}")
+    print(f"Raw source records     : {len(source_records):,}")
+    print(f"Location records       : {record_type_counts['LOCATION']:,}")
+    print(f"History records        : {record_type_counts['HISTORY']:,}")
     print(f"Canonical LOCODEs      : {len(canonical):,}")
     print(f"Duplicate groups       : {duplicate_groups:,}")
     print(f"Duplicate extra rows   : {duplicate_extra_rows:,}")
@@ -430,13 +532,18 @@ def main():
         print(f"  {key:8}: {value:,}")
 
     print()
+    print("Record types:")
+    for key, value in record_type_counts.items():
+        print(f"  {key:10}: {value:,}")
+
+    print()
     print("Outputs:")
     print(f"  Source records : {source_path}")
-    print(f"  Canonical     : {canonical_path}")
-    print(f"  Duplicates    : {duplicate_path}")
-    print(f"  Countries     : {country_path}")
-    print(f"  Malformed     : {malformed_path}")
-    print(f"  Quality       : {quality_path}")
+    print(f"  Canonical      : {canonical_path}")
+    print(f"  Duplicates     : {duplicate_path}")
+    print(f"  Countries      : {country_path}")
+    print(f"  Malformed      : {malformed_path}")
+    print(f"  Quality        : {quality_path}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.api.app.api import (
@@ -10,6 +10,7 @@ from services.api.app.api import (
     regions,
     terminals,
 )
+from services.api.app.api.router import router as v1_router
 from services.api.app.config.settings import get_settings
 from services.api.app.repositories.health_repository import HealthRepository
 
@@ -22,11 +23,12 @@ app = FastAPI(
     version=settings.app_version,
 )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://localhost:5173",
+        "http://localhost:5173", "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -40,6 +42,8 @@ app.include_router(ports.router)
 app.include_router(terminals.router)
 app.include_router(berths.router)
 app.include_router(port_intelligence.router)
+
+app.include_router(v1_router)
 
 
 @app.get("/")
@@ -63,3 +67,5 @@ def health():
 @app.get("/health/database")
 def database_health():
     return health_repository.check_database()
+
+
