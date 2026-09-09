@@ -42,6 +42,46 @@ export interface HumanDecisionResponse {
   provenance: string;
 }
 
+export interface Country {
+  id: string;
+  name: string;
+  code?: string;
+  country_code?: string;
+  iso2?: string;
+  iso3?: string;
+  [key: string]: unknown;
+}
+
+export interface Port {
+  id: string;
+  name: string;
+  location_id: string;
+  unlocode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  source?: string | null;
+  provenance?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CargoRequirement {
+  id: string;
+  cargo_type?: string | null;
+  material: string;
+  quantity_mt: number;
+  origin_location_id?: string | null;
+  destination_location_id?: string | null;
+  earliest_delivery?: string | null;
+  latest_delivery?: string | null;
+  priority: string;
+  provenance: string;
+  source?: string | null;
+  source_reference?: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit
@@ -64,15 +104,54 @@ async function request<T>(
   return response.json();
 }
 
+export async function listCountries(): Promise<Country[]> {
+  const result = await request<{ count: number; data: Country[] }>("/api/v1/countries");
+  return result.data || [];
+}
+
+export async function listPorts(countryCode?: string): Promise<Port[]> {
+  const query = countryCode
+    ? `?country_code=${encodeURIComponent(countryCode)}&limit=250`
+    : "?limit=250";
+  const result = await request<{ count: number; data: Port[] }>(`/api/v1/ports${query}`);
+  return result.data || [];
+}
+
+export async function listCargo(): Promise<CargoRequirement[]> {
+  return request<CargoRequirement[]>("/api/v1/cargo?limit=500");
+}
+
+export async function createCargo(payload: {
+  cargo_type: string;
+  material: string;
+  quantity_mt: number;
+  origin_location_id: string;
+  destination_location_id: string;
+  earliest_delivery: string;
+  latest_delivery: string;
+  priority: string;
+}): Promise<CargoRequirement> {
+  return request<CargoRequirement>("/api/v1/cargo", {
+    method: "POST",
+    body: JSON.stringify({
+      ...payload,
+      provenance: "USER_PROVIDED",
+      source: "CHARTERPULSE_WEB",
+      source_reference: "NEW_PROCUREMENT"
+    })
+  });
+}
+
 export async function evaluateDecision(
   cargoQuantityMt: number,
-  waitDays: number
+  waitDays: number,
+  cargoRequirementId: string = TEST_CARGO_ID
 ): Promise<DecisionResponse> {
   return request<DecisionResponse>("/api/v1/decision/evaluate", {
     method: "POST",
     body: JSON.stringify({
       forecast_id: TEST_FORECAST_ID,
-      cargo_requirement_id: TEST_CARGO_ID,
+      cargo_requirement_id: cargoRequirementId,
       cargo_quantity_mt: cargoQuantityMt,
       wait_days: waitDays,
       simulations: 5000,
