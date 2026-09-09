@@ -1,0 +1,24 @@
+{
+  "source": "UNECE UN/LOCODE",
+  "source_version": "2025-1",
+  "provenance": "REAL",
+  "observed_at": "2026-09-09T16:02:30.253849+00:00",
+  "country_count": 249,
+  "raw_location_rows": 116232,
+  "canonical_locodes": 116086,
+  "duplicate_locode_groups": 139,
+  "duplicate_extra_rows": 146,
+  "malformed_rows": 52,
+  "coordinate_quality": {
+    "VALID": 93166,
+    "MISSING": 23062,
+    "INVALID": 4
+  },
+  "outputs": {
+    "source_records": "data\\processed\\unlocode\\unlocode_source_records.jsonl",
+    "canonical": "data\\processed\\unlocode\\unlocode_canonical.jsonl",
+    "duplicates": "data\\processed\\unlocode\\unlocode_duplicates.jsonl",
+    "countries": "data\\processed\\unlocode\\countries.jsonl",
+    "malformed": "data\\processed\\unlocode\\unlocode_malformed.jsonl"
+  }
+}
