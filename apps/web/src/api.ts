@@ -16,7 +16,9 @@ export interface FeasibilityResponse { id: string; cargo_requirement_id: string;
 
 type ListEnvelope<T> = T[] | { count?: number; data?: T[] };
 
-function unwrapList<T>(result: ListEnvelope<T>): T[] { return Array.isArray(result) ? result : Array.isArray(result.data) ? result.data : []; }
+function unwrapList<T>(result: ListEnvelope<T>): T[] {
+  return Array.isArray(result) ? result : Array.isArray(result.data) ? result.data : [];
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { headers: { "Content-Type": "application/json", ...(options?.headers || {}) }, ...options });
@@ -24,37 +26,75 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
-function normalizeCountryCode(value: unknown): string { const raw = String(value ?? "").trim().toUpperCase(); return /^[A-Z]{2}$/.test(raw) ? raw : ""; }
-function countryCodeFromRecord(record: Record<string, unknown>): string { return normalizeCountryCode(record.iso2 ?? record.country_code ?? record.countryCode ?? record.code ?? String(record.unlocode ?? "").slice(0, 2)); }
-function displayCountryName(code: string): string { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code; } catch { return code; } }
+function normalizeCountryCode(value: unknown): string {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(raw) ? raw : "";
+}
+
+function countryCodeFromRecord(record: Record<string, unknown>): string {
+  const direct = normalizeCountryCode(record.iso2 ?? record.iso_2 ?? record.country_code ?? record.countryCode ?? record.code ?? record.country);
+  if (direct) return direct;
+  const locode = String(record.unlocode ?? record.locode ?? record.location_code ?? record.locationCode ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}[A-Z0-9]{3}$/.test(locode) ? locode.slice(0, 2) : "";
+}
+
+function unlocodeFromRecord(record: Record<string, unknown>): string {
+  return String(record.unlocode ?? record.locode ?? record.location_code ?? record.locationCode ?? record.code ?? "").trim().toUpperCase();
+}
+
+function displayCountryName(code: string): string {
+  try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code; } catch { return code; }
+}
 
 function countriesFromLocations(locations: Location[]): Country[] {
-  const seen = new Set<string>();
-  return locations.map(location => countryCodeFromRecord(location as unknown as Record<string, unknown>)).filter(code => code && !seen.has(code) && seen.add(code)).sort().map(code => ({ id: `derived-country-${code}`, name: displayCountryName(code), iso2: code, country_code: code, provenance: "DERIVED" }));
+  const map = new Map<string, Country>();
+  for (const location of locations) {
+    const raw = location as unknown as Record<string, unknown>;
+    const code = countryCodeFromRecord(raw);
+    if (!code || map.has(code)) continue;
+    map.set(code, { id: `derived-country-${code}`, name: displayCountryName(code), iso2: code, country_code: code, provenance: "DERIVED" });
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 let locationFallbackPromise: Promise<Location[]> | null = null;
-async function listLocationsRaw(): Promise<Location[]> { if (!locationFallbackPromise) locationFallbackPromise = request<ListEnvelope<Location>>("/api/v1/locations").then(unwrapList); return locationFallbackPromise; }
+async function listLocationsRaw(): Promise<Location[]> {
+  if (!locationFallbackPromise) {
+    locationFallbackPromise = request<ListEnvelope<Location>>("/api/v1/locations").then(unwrapList).catch(() => []);
+  }
+  return locationFallbackPromise;
+}
 
 function locationToPort(location: Location, countryCode?: string): Port | null {
   const raw = location as unknown as Record<string, unknown>;
-  const unlocode = String(location.unlocode ?? raw.locode ?? raw.location_code ?? "").trim().toUpperCase();
+  const unlocode = unlocodeFromRecord(raw);
   const code = countryCodeFromRecord(raw) || unlocode.slice(0, 2);
-  const fn = String(location.function ?? location.functions ?? location.function_code ?? raw.function_code ?? "").replace(/\s+/g, "");
   if (!unlocode || !/^[A-Z]{2}[A-Z0-9]{3}$/.test(unlocode)) return null;
-  if (!fn || !fn.startsWith("1")) return null;
   if (countryCode && code !== countryCode) return null;
+  const fn = String(location.function ?? location.functions ?? location.function_code ?? raw.function_code ?? raw.functions ?? "").replace(/\s+/g, "");
+  // Prefer explicit port-function records. If the upstream location payload omits
+  // the function field, retain valid UN/LOCODE records instead of returning zero ports.
+  if (fn && !fn.startsWith("1")) return null;
   return { id: location.id, name: location.name, location_id: location.id, unlocode, latitude: location.latitude ?? (typeof raw.lat === "number" ? raw.lat : null), longitude: location.longitude ?? (typeof raw.lon === "number" ? raw.lon : null), source: location.source ?? "UNECE UN/LOCODE", provenance: location.provenance ?? "PUBLIC_PROXY", ...raw } as Port;
 }
 
-export async function listCountries(): Promise<Country[]> { const primary = unwrapList(await request<ListEnvelope<Country>>("/api/v1/countries")); if (primary.length) return primary; return countriesFromLocations(await listLocationsRaw()); }
+export async function listCountries(): Promise<Country[]> {
+  const primary = unwrapList(await request<ListEnvelope<Country>>("/api/v1/countries"));
+  const usable = primary.filter(c => countryCodeFromRecord(c as unknown as Record<string, unknown>));
+  if (usable.length) return usable;
+  return countriesFromLocations(await listLocationsRaw());
+}
+
 export async function listLocations(): Promise<Location[]> { return listLocationsRaw(); }
 
 export async function listPorts(countryCode?: string): Promise<Port[]> {
   const normalized = normalizeCountryCode(countryCode);
   const query = normalized ? `?country_code=${encodeURIComponent(normalized)}&limit=1000` : "?limit=1000";
-  const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
-  if (primary.length) return primary;
+  try {
+    const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
+    const validPrimary = primary.filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>));
+    if (validPrimary.length) return validPrimary;
+  } catch { /* use location foundation below */ }
   return (await listLocationsRaw()).map(location => locationToPort(location, normalized)).filter((port): port is Port => Boolean(port));
 }
 
