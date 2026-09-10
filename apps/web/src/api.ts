@@ -1,10 +1,7 @@
 const API_BASE = "http://127.0.0.1:8000";
 
-export const TEST_CARGO_ID =
-  "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
-
-export const TEST_FORECAST_ID =
-  "6e7e8284-9b73-49b1-9767-30f536a7911a";
+export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
+export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
 
 export interface DecisionResponse {
   decision_run_id: string | null;
@@ -61,6 +58,9 @@ export interface Port {
   longitude?: number | null;
   source?: string | null;
   provenance?: string | null;
+  max_draft_m?: number | null;
+  max_loa_m?: number | null;
+  max_beam_m?: number | null;
   [key: string]: unknown;
 }
 
@@ -82,25 +82,95 @@ export interface CargoRequirement {
   updated_at: string;
 }
 
-async function request<T>(
-  path: string,
-  options?: RequestInit
-): Promise<T> {
+export interface Vessel {
+  id: string;
+  imo?: string | null;
+  mmsi?: string | null;
+  name: string;
+  vessel_class?: string | null;
+  ship_type?: string | null;
+  flag?: string | null;
+  dwt?: number | null;
+  gt?: number | null;
+  loa_m?: number | null;
+  beam_m?: number | null;
+  max_draft_m?: number | null;
+  cargo_capacity_mt?: number | null;
+  year_built?: number | null;
+  source?: string | null;
+  provenance: string;
+  observed_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketObservation {
+  id: string;
+  market_type: string;
+  metric: string;
+  value: number;
+  unit: string;
+  currency?: string | null;
+  vessel_class?: string | null;
+  observed_at: string;
+  source: string;
+  source_reference?: string | null;
+  provenance: string;
+  [key: string]: unknown;
+}
+
+export interface FreightForecast {
+  id: string;
+  origin_location_id?: string | null;
+  destination_location_id?: string | null;
+  vessel_class?: string | null;
+  p10: number;
+  p50: number;
+  p90: number;
+  baseline: number;
+  model_name?: string | null;
+  model_version?: string | null;
+  mae?: number | null;
+  rmse?: number | null;
+  smape?: number | null;
+  interval_coverage?: number | null;
+  confidence?: number | null;
+  provenance: string;
+  generated_at: string;
+  [key: string]: unknown;
+}
+
+export interface FeasibilityResponse {
+  id: string;
+  cargo_requirement_id: string;
+  vessel_id: string;
+  origin_port_id: string;
+  destination_port_id: string;
+  result: string;
+  cargo_capacity_ok: boolean | null;
+  cargo_compatibility_ok: boolean | null;
+  origin_loa_ok: boolean | null;
+  origin_beam_ok: boolean | null;
+  origin_draft_ok: boolean | null;
+  destination_loa_ok: boolean | null;
+  destination_beam_ok: boolean | null;
+  destination_draft_ok: boolean | null;
+  loading_capability_ok: boolean | null;
+  discharge_capability_ok: boolean | null;
+  delivery_window_ok: boolean | null;
+  reasons: string[];
+  checks: Record<string, unknown>;
+  provenance: string;
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {})
-    },
+    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
     ...options
   });
-
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(
-      `API ${response.status}: ${text || response.statusText}`
-    );
+    throw new Error(`API ${response.status}: ${text || response.statusText}`);
   }
-
   return response.json();
 }
 
@@ -110,9 +180,7 @@ export async function listCountries(): Promise<Country[]> {
 }
 
 export async function listPorts(countryCode?: string): Promise<Port[]> {
-  const query = countryCode
-    ? `?country_code=${encodeURIComponent(countryCode)}&limit=250`
-    : "?limit=250";
+  const query = countryCode ? `?country_code=${encodeURIComponent(countryCode)}&limit=250` : "?limit=250";
   const result = await request<{ count: number; data: Port[] }>(`/api/v1/ports${query}`);
   return result.data || [];
 }
@@ -133,47 +201,44 @@ export async function createCargo(payload: {
 }): Promise<CargoRequirement> {
   return request<CargoRequirement>("/api/v1/cargo", {
     method: "POST",
-    body: JSON.stringify({
-      ...payload,
-      provenance: "USER_PROVIDED",
-      source: "CHARTERPULSE_WEB",
-      source_reference: "NEW_PROCUREMENT"
-    })
+    body: JSON.stringify({ ...payload, provenance: "USER_PROVIDED", source: "CHARTERPULSE_WEB", source_reference: "NEW_PROCUREMENT" })
   });
 }
 
-export async function evaluateDecision(
-  cargoQuantityMt: number,
-  waitDays: number,
-  cargoRequirementId: string = TEST_CARGO_ID
-): Promise<DecisionResponse> {
+export async function listVessels(): Promise<Vessel[]> {
+  return request<Vessel[]>("/api/v1/vessels?limit=500");
+}
+
+export async function listMarketObservations(): Promise<MarketObservation[]> {
+  return request<MarketObservation[]>("/api/v1/market/observations?limit=500");
+}
+
+export async function listFreightForecasts(): Promise<FreightForecast[]> {
+  return request<FreightForecast[]>("/api/v1/forecasts/freight?limit=100");
+}
+
+export async function evaluateFeasibility(payload: {
+  cargo_requirement_id: string;
+  vessel_id: string;
+  origin_port_id: string;
+  destination_port_id: string;
+}): Promise<FeasibilityResponse> {
+  return request<FeasibilityResponse>("/api/v1/feasibility", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID): Promise<DecisionResponse> {
   return request<DecisionResponse>("/api/v1/decision/evaluate", {
     method: "POST",
-    body: JSON.stringify({
-      forecast_id: TEST_FORECAST_ID,
-      cargo_requirement_id: cargoRequirementId,
-      cargo_quantity_mt: cargoQuantityMt,
-      wait_days: waitDays,
-      simulations: 5000,
-      seed: 42,
-      currency: "USD"
-    })
+    body: JSON.stringify({ forecast_id: TEST_FORECAST_ID, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" })
   });
 }
 
-export async function recordHumanDecision(
-  decisionRunId: string,
-  action: "APPROVE" | "MODIFY" | "REJECT",
-  reason: string
-): Promise<HumanDecisionResponse> {
+export async function recordHumanDecision(decisionRunId: string, action: "APPROVE" | "MODIFY" | "REJECT", reason: string): Promise<HumanDecisionResponse> {
   return request<HumanDecisionResponse>("/api/v1/decisions/human", {
     method: "POST",
-    body: JSON.stringify({
-      decision_run_id: decisionRunId,
-      action,
-      modified_parameters: {},
-      reason,
-      actor_reference: "CHARTERPULSE_WEB_USER"
-    })
+    body: JSON.stringify({ decision_run_id: decisionRunId, action, modified_parameters: {}, reason, actor_reference: "CHARTERPULSE_WEB_USER" })
   });
 }
