@@ -180,7 +180,7 @@ export async function listCountries(): Promise<Country[]> {
 }
 
 export async function listPorts(countryCode?: string): Promise<Port[]> {
-  const query = countryCode ? `?country_code=${encodeURIComponent(countryCode)}&limit=250` : "?limit=250";
+  const query = countryCode ? `?country_code=${encodeURIComponent(countryCode)}&limit=1000` : "?limit=1000";
   const result = await request<{ count: number; data: Port[] }>(`/api/v1/ports${query}`);
   return result.data || [];
 }
