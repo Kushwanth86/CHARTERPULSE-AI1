@@ -1,6 +1,12 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# <repo>/services/api/app/config/settings.py -> repository root
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+ENV_FILE = REPOSITORY_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -13,7 +19,7 @@ class Settings(BaseSettings):
     supabase_secret_key: str | None = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(str(ENV_FILE), ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
