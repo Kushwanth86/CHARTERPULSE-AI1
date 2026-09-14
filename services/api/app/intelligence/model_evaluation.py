@@ -17,7 +17,7 @@ class ModelEvaluationEngine:
     ) -> dict[str, float | bool]:
         if actual <= 0:
             raise ValueError("Actual value must be greater than zero.")
-        if p10 < 0 or p50 < 0 or p90 < p50:
+        if p10 < 0 or p50 < 0 or p90 < 0 or not (p10 <= p50 <= p90):
             raise ValueError("Forecast prediction interval is invalid.")
 
         signed_error = actual - p50
