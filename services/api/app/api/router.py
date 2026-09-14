@@ -12,6 +12,7 @@ from services.api.app.api.routes import (
     outcomes,
     port_constraints,
     risk,
+    vessel_cargo_compatibility,
     vessels,
 )
 from services.api.app.api.routes import forecasts
@@ -25,6 +26,7 @@ router.include_router(forecasts.router)
 router.include_router(vessels.router)
 router.include_router(feasibility.router)
 router.include_router(port_constraints.router)
+router.include_router(vessel_cargo_compatibility.router)
 router.include_router(costs.router)
 router.include_router(charter_scenarios.router)
 router.include_router(risk.router)

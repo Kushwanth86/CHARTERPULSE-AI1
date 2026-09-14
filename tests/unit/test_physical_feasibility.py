@@ -43,9 +43,19 @@ def _constraints(**overrides):
     return value
 
 
-def test_feasible_bulk_vessel():
+def _compatibility(**overrides):
+    value = {
+        "vessel_id": "test-vessel",
+        "cargo_type": "DRY_BULK",
+        "allowed": True,
+    }
+    value.update(overrides)
+    return [value]
+
+
+def test_feasible_bulk_vessel_with_explicit_compatibility():
     result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(), _vessel(), _constraints(), _constraints()
+        _cargo(), _vessel(), _constraints(), _constraints(), _compatibility()
     )
 
     assert result["result"] == "FEASIBLE"
@@ -55,9 +65,27 @@ def test_feasible_bulk_vessel():
     assert result["provenance"] == "DERIVED"
 
 
+def test_missing_vessel_compatibility_requires_review():
+    result = PhysicalFeasibilityEngine().evaluate(
+        _cargo(), _vessel(), _constraints(), _constraints(), []
+    )
+
+    assert result["result"] == "REVIEW"
+    assert result["cargo_compatibility_ok"] is None
+
+
+def test_explicit_incompatibility_is_infeasible():
+    result = PhysicalFeasibilityEngine().evaluate(
+        _cargo(), _vessel(), _constraints(), _constraints(), _compatibility(allowed=False)
+    )
+
+    assert result["result"] == "INFEASIBLE"
+    assert result["cargo_compatibility_ok"] is False
+
+
 def test_insufficient_capacity_is_infeasible():
     result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(quantity_mt=90000), _vessel(), _constraints(), _constraints()
+        _cargo(quantity_mt=90000), _vessel(), _constraints(), _constraints(), _compatibility()
     )
 
     assert result["result"] == "INFEASIBLE"
@@ -65,18 +93,9 @@ def test_insufficient_capacity_is_infeasible():
     assert any("capacity" in reason.lower() for reason in result["reasons"])
 
 
-def test_dry_bulk_is_not_compatible_with_tanker():
-    result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(), _vessel(ship_type="OIL_TANKER"), _constraints(), _constraints()
-    )
-
-    assert result["result"] == "INFEASIBLE"
-    assert result["cargo_compatibility_ok"] is False
-
-
 def test_port_dimension_violation_is_infeasible():
     result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(), _vessel(loa_m=250.0), _constraints(), _constraints()
+        _cargo(), _vessel(loa_m=250.0), _constraints(), _constraints(), _compatibility()
     )
 
     assert result["result"] == "INFEASIBLE"
@@ -85,12 +104,24 @@ def test_port_dimension_violation_is_infeasible():
 
 def test_missing_port_constraints_requires_review():
     result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(), _vessel(), None, _constraints()
+        _cargo(), _vessel(), None, _constraints(), _compatibility()
     )
 
     assert result["result"] == "REVIEW"
     assert result["origin_loa_ok"] is None
     assert result["destination_loa_ok"] is True
+
+
+def test_missing_port_handling_data_requires_review():
+    result = PhysicalFeasibilityEngine().evaluate(
+        _cargo(),
+        _vessel(),
+        _constraints(cargo_handling_types=None),
+        _constraints(),
+        _compatibility(),
+    )
+
+    assert result["result"] == "REVIEW"
 
 
 def test_expired_delivery_deadline_is_infeasible():
@@ -99,6 +130,7 @@ def test_expired_delivery_deadline_is_infeasible():
         _vessel(),
         _constraints(),
         _constraints(),
+        _compatibility(),
     )
 
     assert result["result"] == "INFEASIBLE"
@@ -107,7 +139,7 @@ def test_expired_delivery_deadline_is_infeasible():
 
 def test_missing_required_data_requires_review_not_false_feasibility():
     result = PhysicalFeasibilityEngine().evaluate(
-        _cargo(quantity_mt=None), _vessel(), _constraints(), _constraints()
+        _cargo(quantity_mt=None), _vessel(), _constraints(), _constraints(), _compatibility()
     )
 
     assert result["result"] == "REVIEW"

@@ -4,21 +4,38 @@ from datetime import datetime, timezone
 
 
 class PhysicalFeasibilityEngine:
-    """Evaluate physical and operational feasibility without inventing data.
+    """Deterministic physical feasibility gate.
 
-    A known violated constraint produces ``INFEASIBLE``.
-    A missing required constraint produces ``REVIEW``.
-    Only when all required checks are known and pass is the result ``FEASIBLE``.
+    The engine is intentionally conservative:
+    - a known violated constraint produces ``INFEASIBLE``;
+    - a required unknown produces ``REVIEW``;
+    - ``FEASIBLE`` is returned only when every required check is known and passes.
+
+    No vessel class, port, cargo or material is inferred from a hard-coded
+    industry mapping. Compatibility must be supplied as source-backed data.
     """
 
     @staticmethod
+    def _normalize(value: object) -> str:
+        return " ".join(
+            str(value or "")
+            .strip()
+            .lower()
+            .replace("_", " ")
+            .replace("-", " ")
+            .split()
+        )
+
+    @classmethod
     def _dimension_check(
+        cls,
         vessel_value,
         port_limit,
         label: str,
         reasons: list[str],
     ) -> bool | None:
         if port_limit is None:
+            reasons.append(f"{label}: port limit unavailable.")
             return None
         if vessel_value is None:
             reasons.append(f"{label}: vessel dimension unavailable.")
@@ -32,69 +49,103 @@ class PhysicalFeasibilityEngine:
     def _capacity_check(
         vessel_capacity,
         required_quantity,
-        port_limit,
+        port_limits,
         reasons: list[str],
     ) -> bool | None:
         if required_quantity is None or vessel_capacity is None:
             reasons.append("Cargo quantity or vessel cargo capacity is unavailable.")
             return None
+
         if float(vessel_capacity) < float(required_quantity):
-            reasons.append("Vessel cargo capacity is insufficient.")
+            reasons.append("Vessel cargo capacity is insufficient for the cargo requirement.")
             return False
-        if port_limit is not None and float(vessel_capacity) > float(port_limit):
-            reasons.append("Vessel cargo capacity exceeds the port vessel-capacity limit.")
+
+        if any(value is None for value in port_limits):
+            reasons.append("A required port vessel-capacity limit is unavailable.")
+            return None
+
+        effective_limit = min(float(value) for value in port_limits)
+        if float(vessel_capacity) > effective_limit:
+            reasons.append("Vessel cargo capacity exceeds the applicable port vessel-capacity limit.")
             return False
+
+        return True
+
+    @classmethod
+    def _explicit_vessel_cargo_compatibility(
+        cls,
+        cargo: dict,
+        rules: list[dict] | None,
+        reasons: list[str],
+    ) -> bool | None:
+        if not rules:
+            reasons.append("No source-backed vessel/cargo compatibility rule is available.")
+            return None
+
+        cargo_type = cls._normalize(cargo.get("cargo_type"))
+        material = cls._normalize(cargo.get("material"))
+
+        matches: list[dict] = []
+        for rule in rules:
+            rule_type = cls._normalize(rule.get("cargo_type"))
+            rule_material = cls._normalize(rule.get("material"))
+            if rule_type and cargo_type and rule_type == cargo_type:
+                matches.append(rule)
+            elif rule_material and material and rule_material == material:
+                matches.append(rule)
+
+        if not matches:
+            reasons.append("No matching source-backed vessel/cargo compatibility rule is available.")
+            return None
+
+        if any(rule.get("allowed") is False for rule in matches):
+            reasons.append("Vessel/cargo compatibility is explicitly disallowed by source-backed data.")
+            return False
+
+        return True
+
+    @classmethod
+    def _port_handling_check(
+        cls,
+        cargo: dict,
+        constraints: dict | None,
+        prefix: str,
+        reasons: list[str],
+    ) -> bool | None:
+        if constraints is None:
+            reasons.append(f"{prefix}: physical port constraints unavailable.")
+            return None
+
+        handling_types = constraints.get("cargo_handling_types")
+        if not isinstance(handling_types, list) or not handling_types:
+            reasons.append(f"{prefix}: cargo handling compatibility data unavailable.")
+            return None
+
+        cargo_identifier = cargo.get("cargo_type") or cargo.get("material")
+        if not cargo_identifier:
+            reasons.append(f"{prefix}: cargo type/material unavailable for handling compatibility.")
+            return None
+
+        normalized_identifier = cls._normalize(cargo_identifier)
+        supported = {cls._normalize(item) for item in handling_types if item}
+        if normalized_identifier not in supported:
+            reasons.append(f"{prefix}: cargo type is not listed as supported handling capability.")
+            return False
+
         return True
 
     @staticmethod
-    def _cargo_compatibility(cargo: dict, vessel: dict, constraints: list[dict | None], reasons: list[str]) -> bool | None:
-        cargo_type = str(cargo.get("cargo_type") or "").strip().lower()
-        material = str(cargo.get("material") or "").strip().lower()
-        ship_type = str(vessel.get("ship_type") or "").strip().lower()
-
-        if not cargo_type and not material:
-            reasons.append("Cargo type/material is unavailable for compatibility evaluation.")
+    def _availability_check(
+        value,
+        label: str,
+        reasons: list[str],
+    ) -> bool | None:
+        if value is None:
+            reasons.append(f"{label}: capability availability is unknown.")
             return None
-        if not ship_type:
-            reasons.append("Vessel ship type is unavailable for compatibility evaluation.")
-            return None
-
-        combined = f"{cargo_type} {material}"
-        is_liquid = any(term in combined for term in ("crude", "oil", "petroleum", "chemical", "liquid"))
-        is_dry_bulk = any(term in combined for term in ("dry_bulk", "dry bulk", "coal", "ore", "grain", "coke", "cement"))
-        is_container = any(term in combined for term in ("container", "containerized"))
-        is_tanker = "tanker" in ship_type
-        is_bulk = any(term in ship_type for term in ("bulk", "bulker"))
-        is_container_ship = any(term in ship_type for term in ("container", "containership"))
-
-        if is_liquid and not is_tanker:
-            reasons.append("Liquid cargo requires a tanker-compatible vessel type.")
+        if value is False:
+            reasons.append(f"{label}: capability unavailable.")
             return False
-        if is_dry_bulk and is_tanker:
-            reasons.append("Dry-bulk cargo is incompatible with a tanker vessel type.")
-            return False
-        if is_container and not is_container_ship:
-            reasons.append("Containerized cargo requires a container-compatible vessel type.")
-            return False
-
-        handling_types = []
-        for constraint in constraints:
-            if constraint and constraint.get("cargo_handling_types"):
-                value = constraint["cargo_handling_types"]
-                if isinstance(value, list):
-                    handling_types.extend(str(item).strip().lower() for item in value)
-
-        if handling_types:
-            candidates = {cargo_type, material}
-            candidates.discard("")
-            if not any(
-                candidate in handling_types
-                or any(candidate in supported or supported in candidate for supported in handling_types)
-                for candidate in candidates
-            ):
-                reasons.append("Cargo type/material is not listed as supported by the port handling constraints.")
-                return False
-
         return True
 
     @staticmethod
@@ -126,6 +177,7 @@ class PhysicalFeasibilityEngine:
         vessel: dict,
         origin_constraints: dict | None,
         destination_constraints: dict | None,
+        vessel_compatibility: list[dict] | None = None,
     ) -> dict:
         reasons: list[str] = []
         checks: dict = {}
@@ -133,42 +185,65 @@ class PhysicalFeasibilityEngine:
         quantity = cargo.get("quantity_mt")
         capacity = vessel.get("cargo_capacity_mt")
 
-        origin_capacity_limit = (origin_constraints or {}).get("max_vessel_capacity_mt")
-        destination_capacity_limit = (destination_constraints or {}).get("max_vessel_capacity_mt")
-        capacity_limits = [value for value in (origin_capacity_limit, destination_capacity_limit) if value is not None]
-        effective_capacity_limit = min(capacity_limits) if capacity_limits else None
-
-        cargo_capacity_ok = self._capacity_check(
-            capacity, quantity, effective_capacity_limit, reasons
+        origin_limit = (origin_constraints or {}).get("max_vessel_capacity_mt")
+        destination_limit = (destination_constraints or {}).get("max_vessel_capacity_mt")
+        capacity_ok = self._capacity_check(
+            capacity,
+            quantity,
+            [origin_limit, destination_limit],
+            reasons,
         )
+
         checks["cargo_capacity_mt"] = capacity
         checks["required_cargo_mt"] = quantity
-        checks["max_vessel_capacity_mt"] = effective_capacity_limit
+        checks["origin_max_vessel_capacity_mt"] = origin_limit
+        checks["destination_max_vessel_capacity_mt"] = destination_limit
 
-        cargo_compatibility_ok = self._cargo_compatibility(
-            cargo, vessel, [origin_constraints, destination_constraints], reasons
+        cargo_compatibility_ok = self._explicit_vessel_cargo_compatibility(
+            cargo,
+            vessel_compatibility,
+            reasons,
         )
-        checks["cargo_type"] = cargo.get("cargo_type")
-        checks["material"] = cargo.get("material")
-        checks["ship_type"] = vessel.get("ship_type")
+        checks["vessel_cargo_compatibility_rule_count"] = len(vessel_compatibility or [])
 
         def evaluate_port(constraints: dict | None, prefix: str) -> dict:
-            if not constraints:
-                reasons.append(f"{prefix}: physical port constraints unavailable.")
-                return {"loa": None, "beam": None, "draft": None, "loading": None, "discharge": None}
-
-            loa = self._dimension_check(vessel.get("loa_m"), constraints.get("max_loa_m"), f"{prefix} LOA", reasons)
-            beam = self._dimension_check(vessel.get("beam_m"), constraints.get("max_beam_m"), f"{prefix} beam", reasons)
-            draft = self._dimension_check(vessel.get("max_draft_m"), constraints.get("max_draft_m"), f"{prefix} draft", reasons)
-
-            loading = constraints.get("loading_available")
-            discharge = constraints.get("discharge_available")
-            if loading is False:
-                reasons.append(f"{prefix}: loading capability unavailable.")
-            if discharge is False:
-                reasons.append(f"{prefix}: discharge capability unavailable.")
-
-            return {"loa": loa, "beam": beam, "draft": draft, "loading": loading, "discharge": discharge}
+            loa = self._dimension_check(
+                vessel.get("loa_m"),
+                (constraints or {}).get("max_loa_m"),
+                f"{prefix} LOA",
+                reasons,
+            )
+            beam = self._dimension_check(
+                vessel.get("beam_m"),
+                (constraints or {}).get("max_beam_m"),
+                f"{prefix} beam",
+                reasons,
+            )
+            draft = self._dimension_check(
+                vessel.get("max_draft_m"),
+                (constraints or {}).get("max_draft_m"),
+                f"{prefix} draft",
+                reasons,
+            )
+            handling = self._port_handling_check(cargo, constraints, prefix, reasons)
+            loading = self._availability_check(
+                (constraints or {}).get("loading_available"),
+                f"{prefix} loading",
+                reasons,
+            )
+            discharge = self._availability_check(
+                (constraints or {}).get("discharge_available"),
+                f"{prefix} discharge",
+                reasons,
+            )
+            return {
+                "loa": loa,
+                "beam": beam,
+                "draft": draft,
+                "handling": handling,
+                "loading": loading,
+                "discharge": discharge,
+            }
 
         origin = evaluate_port(origin_constraints, "Origin port")
         destination = evaluate_port(destination_constraints, "Destination port")
@@ -176,11 +251,18 @@ class PhysicalFeasibilityEngine:
         delivery_window_ok = self._delivery_window_check(cargo, reasons)
 
         all_checks = [
-            cargo_capacity_ok,
+            capacity_ok,
             cargo_compatibility_ok,
-            origin["loa"], origin["beam"], origin["draft"],
-            destination["loa"], destination["beam"], destination["draft"],
-            origin["loading"], destination["discharge"],
+            origin["loa"],
+            origin["beam"],
+            origin["draft"],
+            destination["loa"],
+            destination["beam"],
+            destination["draft"],
+            origin["handling"],
+            destination["handling"],
+            origin["loading"],
+            destination["discharge"],
             delivery_window_ok,
         ]
 
@@ -193,10 +275,11 @@ class PhysicalFeasibilityEngine:
 
         checks["origin_constraints_available"] = origin_constraints is not None
         checks["destination_constraints_available"] = destination_constraints is not None
+        checks["delivery_window_scope"] = "deadline status only; route transit time is not evaluated"
 
         return {
             "result": result,
-            "cargo_capacity_ok": cargo_capacity_ok,
+            "cargo_capacity_ok": capacity_ok,
             "cargo_compatibility_ok": cargo_compatibility_ok,
             "origin_loa_ok": origin["loa"],
             "origin_beam_ok": origin["beam"],
