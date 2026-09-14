@@ -8,6 +8,7 @@ from services.api.app.api.routes import (
     feasibility,
     human_decision,
     market,
+    model_evaluation,
     outcomes,
     port_constraints,
     risk,
@@ -30,3 +31,4 @@ router.include_router(risk.router)
 router.include_router(decision.router)
 router.include_router(human_decision.router)
 router.include_router(outcomes.router)
+router.include_router(model_evaluation.router)
