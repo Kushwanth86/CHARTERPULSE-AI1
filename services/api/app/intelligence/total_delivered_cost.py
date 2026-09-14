@@ -1,4 +1,4 @@
-﻿from services.api.app.repositories.supabase_client import get_supabase_admin_client
+from services.api.app.repositories.supabase_client import get_supabase_admin_client
 from services.api.app.schemas.costs import (
     CostComponent,
     TotalDeliveredCostRequest,
@@ -148,7 +148,7 @@ def calculate_total_delivered_cost(
         total_cost=round(total, 2),
         cost_per_mt=round(total / payload.cargo_quantity_mt, 4),
         currency=payload.currency,
-        completeness_score=round(completeness, 4),
+        completeness_score=completeness,
         components=components,
         known_component_count=known_count,
         missing_component_count=missing_count,
