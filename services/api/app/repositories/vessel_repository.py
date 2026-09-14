@@ -1,6 +1,7 @@
-﻿from uuid import UUID
+from uuid import UUID
 
 from services.api.app.repositories.supabase_client import (
+    get_supabase_client,
     get_supabase_admin_client,
 )
 
@@ -23,7 +24,9 @@ class VesselRepository:
         return response.data[0]
 
     def get(self, vessel_id: UUID) -> dict | None:
-        client = get_supabase_admin_client()
+        # Reads use the publishable key so the API does not require the
+        # privileged Supabase secret key for read-only operations.
+        client = get_supabase_client()
 
         response = (
             client
@@ -37,7 +40,9 @@ class VesselRepository:
         return response.data[0] if response.data else None
 
     def list(self, limit: int = 100) -> list[dict]:
-        client = get_supabase_admin_client()
+        # Reads use the publishable key; migration 027 grants SELECT to
+        # anon/authenticated while keeping writes privileged.
+        client = get_supabase_client()
 
         response = (
             client
