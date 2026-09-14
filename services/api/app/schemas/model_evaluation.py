@@ -1,10 +1,11 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
-ActualProvenance = str
+ActualProvenance = Literal["REAL", "USER_PROVIDED", "DERIVED"]
 
 
 class ForecastEvaluationCreate(BaseModel):
