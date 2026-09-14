@@ -1,14 +1,14 @@
 ﻿from uuid import UUID
 
 from services.api.app.repositories.supabase_client import (
-    get_supabase_admin_client,
+    get_supabase_client,
 )
 
 
 class CargoRepository:
 
     def create(self, payload: dict) -> dict:
-        client = get_supabase_admin_client()
+        client = get_supabase_client()
 
         response = (
             client
@@ -23,7 +23,7 @@ class CargoRepository:
         return response.data[0]
 
     def get(self, cargo_id: UUID) -> dict | None:
-        client = get_supabase_admin_client()
+        client = get_supabase_client()
 
         response = (
             client
@@ -37,7 +37,7 @@ class CargoRepository:
         return response.data[0] if response.data else None
 
     def list(self, limit: int = 100) -> list[dict]:
-        client = get_supabase_admin_client()
+        client = get_supabase_client()
 
         response = (
             client
