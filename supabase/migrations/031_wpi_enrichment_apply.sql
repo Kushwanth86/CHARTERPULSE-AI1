@@ -30,7 +30,7 @@ DECLARE
     port_id_value uuid;
     field_name text;
     action_name text;
-    current_value text;
+    current_value numeric;
     wpi_value jsonb;
     expected_current jsonb;
     port_exists boolean;
@@ -194,14 +194,14 @@ BEGIN
                     END IF;
 
                     IF field_name = 'max_loa_m' THEN
-                        SELECT max_loa_m::text INTO current_value FROM public.port_constraints WHERE id = constraint_id;
+                        SELECT max_loa_m INTO current_value FROM public.port_constraints WHERE id = constraint_id;
                     ELSIF field_name = 'max_beam_m' THEN
-                        SELECT max_beam_m::text INTO current_value FROM public.port_constraints WHERE id = constraint_id;
+                        SELECT max_beam_m INTO current_value FROM public.port_constraints WHERE id = constraint_id;
                     ELSE
-                        SELECT max_draft_m::text INTO current_value FROM public.port_constraints WHERE id = constraint_id;
+                        SELECT max_draft_m INTO current_value FROM public.port_constraints WHERE id = constraint_id;
                     END IF;
 
-                    IF current_value IS DISTINCT FROM action_item->>'current' THEN
+                    IF current_value IS DISTINCT FROM (action_item->>'current')::numeric THEN
                         RAISE EXCEPTION 'Stale WPI plan for simulated % on port %: expected %, found %',
                             field_name, port_id_value, action_item->>'current', current_value;
                     END IF;
