@@ -95,6 +95,25 @@ class PortIntelligenceService:
             for item in (constraints_response.data or [])
         }
 
+        port_ids = [item["id"] for item in ports]
+
+        constraints_response = (
+            self.client.table("port_constraints")
+            .select(
+                "port_id,max_draft_m,max_loa_m,max_beam_m,"
+                "loading_available,discharge_available,"
+                "cargo_handling_types,provenance,"
+                "source,source_reference,observed_at,"
+                "operational_provenance"
+            )
+            .in_("port_id", port_ids)
+            .execute()
+        )
+        constraints = {
+            item["port_id"]: item
+            for item in (constraints_response.data or [])
+        }
+
         location_ids = list({item["location_id"] for item in ports})
 
         locations_response = (
@@ -134,6 +153,11 @@ class PortIntelligenceService:
 
             location = locations.get(port["location_id"], {})
             country = countries.get(location.get("country_id"), {})
+            constraint = constraints.get(port["id"], {})
+
+            for field in ("max_draft_m", "max_loa_m", "max_beam_m"):
+                if constraint.get(field) is not None:
+                    port[field] = constraint[field]
 
             constraint = constraints.get(port["id"], {})
 
