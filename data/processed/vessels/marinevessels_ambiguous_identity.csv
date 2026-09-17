@@ -1,0 +1,11 @@
+imo_number,mmsi,name,vessel_class,ship_type,flag,dwt_mt,gross_tonnage,loa_m,beam_m,max_draft_m,cargo_capacity_mt,year_built,source,source_reference,provenance,observed_at,identity_classification
+1523712,269057303,SEMPACHERSEE,Tanker,Tanker,,,,86.0,58.0,,,,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+7005982,235674000,RESEARCH W,Chemical Tanker,Chemical Tanker,,4237.0,2428.0,78.0,14.0,6.43,,1970.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+9306122,205335490,TANZANITE,Oil Products Tanker,Oil Products Tanker,,4165.0,2011.0,110.0,14.0,4.2,,2004.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+9120932,355618000,AGIRI,Crude Oil Tanker,Crude Oil Tanker,,98805.0,53074.0,248.0,43.0,7.17,,1996.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+9306122,370289000,NYK TERRA,Oil Products Tanker,Oil Products Tanker,,4165.0,2011.0,304.0,40.0,4.2,,2004.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+7005982,214181318,TEKOS,Chemical Tanker,Chemical Tanker,,4237.0,2428.0,99.0,12.0,6.43,,1970.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+8116099,219143000,MAERSK BLAZER,Offshore Tug/Supply Ship,Offshore Tug/Supply Ship,,2085.0,1972.0,85.0,19.0,6.0,,1983.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+8116099,219408000,MAERSK BLAZER,Offshore Tug/Supply Ship,Offshore Tug/Supply Ship,,2085.0,1972.0,85.0,19.0,6.0,,1983.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+9120932,239239000,ASTRO SIRIUS,Crude Oil Tanker,Crude Oil Tanker,,98805.0,53074.0,248.0,43.0,7.17,,1996.0,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY
+1523712,244710039,ACTIEF,Pleasure craft,Pleasure craft,,,,22.0,5.0,,,,MarineVessels,https://github.com/rich-iannone/MarineVessels,PUBLIC_PROXY,,AMBIGUOUS_IDENTITY

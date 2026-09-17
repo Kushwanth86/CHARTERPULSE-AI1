@@ -9,6 +9,10 @@ from services.api.app.repositories.supabase_client import (
 class VesselCargoCompatibilityRepository:
 
     def create(self, payload: dict) -> dict:
+        payload = dict(payload)
+        if isinstance(payload.get("vessel_id"), UUID):
+            payload["vessel_id"] = str(payload["vessel_id"])
+
         client = get_supabase_admin_client()
         response = (
             client
