@@ -1,4 +1,10 @@
-from services.api.app.intelligence.physical_feasibility import PhysicalFeasibilityEngine
+﻿from uuid import uuid4
+
+from services.api.app.intelligence.physical_feasibility import (
+    PhysicalFeasibilityEngine,
+)
+from services.api.app.schemas.feasibility import FeasibilityRequest
+from services.api.app.services.feasibility_service import FeasibilityService
 
 
 def test_feasibility_returns_feasible_when_all_required_checks_pass():
@@ -12,6 +18,7 @@ def test_feasibility_returns_feasible_when_all_required_checks_pass():
         },
         vessel={
             "cargo_capacity_mt": 20000,
+            "dwt_mt": 25000,
             "loa_m": 200,
             "beam_m": 30,
             "max_draft_m": 10,
@@ -57,6 +64,7 @@ def test_feasibility_returns_infeasible_when_vessel_exceeds_port_limit():
         },
         vessel={
             "cargo_capacity_mt": 20000,
+            "dwt_mt": 25000,
             "loa_m": 300,
             "beam_m": 30,
             "max_draft_m": 10,
@@ -102,6 +110,7 @@ def test_feasibility_returns_review_when_required_data_is_unknown():
         },
         vessel={
             "cargo_capacity_mt": 20000,
+            "dwt_mt": 25000,
             "loa_m": 200,
             "beam_m": 30,
             "max_draft_m": 10,
@@ -126,11 +135,6 @@ def test_feasibility_returns_review_when_required_data_is_unknown():
 
     assert result["result"] == "REVIEW"
     assert result["provenance"] == "DERIVED"
-
-from uuid import uuid4
-
-from services.api.app.schemas.feasibility import FeasibilityRequest
-from services.api.app.services.feasibility_service import FeasibilityService
 
 
 class FakeRepository:
@@ -165,6 +169,7 @@ def test_feasibility_service_orchestrates_dependencies_and_persists_result():
     vessel = {
         "name": "CP TEST BULK 01",
         "cargo_capacity_mt": 80000,
+        "dwt_mt": 82000,
         "loa_m": 225.0,
         "beam_m": 32.2,
         "max_draft_m": 13.5,
@@ -187,22 +192,30 @@ def test_feasibility_service_orchestrates_dependencies_and_persists_result():
         }
     ]
 
-    cargo_repository = FakeRepository({
-        str(cargo_id): cargo,
-    })
+    cargo_repository = FakeRepository(
+        {
+            str(cargo_id): cargo,
+        }
+    )
 
-    vessel_repository = FakeRepository({
-        str(vessel_id): vessel,
-    })
+    vessel_repository = FakeRepository(
+        {
+            str(vessel_id): vessel,
+        }
+    )
 
-    constraint_repository = FakeRepository({
-        str(origin_port_id): constraints,
-        str(destination_port_id): constraints,
-    })
+    constraint_repository = FakeRepository(
+        {
+            str(origin_port_id): constraints,
+            str(destination_port_id): constraints,
+        }
+    )
 
-    compatibility_repository = FakeRepository({
-        "compatibility": compatibility,
-    })
+    compatibility_repository = FakeRepository(
+        {
+            "compatibility": compatibility,
+        }
+    )
 
     feasibility_repository = FakeRepository()
 

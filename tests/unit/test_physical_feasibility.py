@@ -21,6 +21,7 @@ def _vessel(**overrides):
         "ship_type": "BULK_CARRIER",
         "vessel_class": "PANAMAX",
         "cargo_capacity_mt": 80000,
+        "dwt_mt": 82000,
         "loa_m": 225.0,
         "beam_m": 32.2,
         "max_draft_m": 13.5,
@@ -144,3 +145,24 @@ def test_missing_required_data_requires_review_not_false_feasibility():
 
     assert result["result"] == "REVIEW"
     assert result["cargo_capacity_ok"] is None
+
+
+def test_feasibility_rejects_vessel_when_dwt_exceeds_port_limit():
+    result = PhysicalFeasibilityEngine().evaluate(
+        _cargo(quantity_mt=70000),
+        _vessel(
+            cargo_capacity_mt=80000,
+            dwt_mt=90000,
+        ),
+        _constraints(max_vessel_capacity_mt=85000),
+        _constraints(max_vessel_capacity_mt=85000),
+        _compatibility(),
+    )
+
+    assert result["result"] == "INFEASIBLE"
+    assert result["cargo_capacity_ok"] is True
+    assert result["checks"]["vessel_dwt_ok"] is False
+    assert any(
+        "DWT exceeds" in reason
+        for reason in result["reasons"]
+    )
