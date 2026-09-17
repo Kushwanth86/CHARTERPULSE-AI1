@@ -1,7 +1,7 @@
-﻿from datetime import datetime
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CargoRequirementCreate(BaseModel):
@@ -20,6 +20,18 @@ class CargoRequirementCreate(BaseModel):
     provenance: str = "USER_PROVIDED"
     source: str | None = None
     source_reference: str | None = None
+
+    @model_validator(mode="after")
+    def validate_delivery_window(self):
+        if (
+            self.earliest_delivery is not None
+            and self.latest_delivery is not None
+            and self.latest_delivery < self.earliest_delivery
+        ):
+            raise ValueError(
+                "latest_delivery must be greater than or equal to earliest_delivery"
+            )
+        return self
 
 
 class CargoRequirementResponse(CargoRequirementCreate):
