@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -84,21 +84,26 @@ def normalize_list(value):
     return normalized or None
 
 
-def classify(current, candidate, current_provenance=None):
+def classify(field, current, candidate, current_provenance=None):
     if candidate is None:
         return "NO_WPI_VALUE"
 
     if current is None:
         return "CANDIDATE_NEW"
 
-    if current == candidate:
+    if field in {"max_loa_m", "max_beam_m", "max_draft_m"}:
+        try:
+            if abs(float(current) - float(candidate)) <= 0.01:
+                return "SAME"
+        except (TypeError, ValueError):
+            pass
+    elif current == candidate:
         return "SAME"
 
     if current_provenance == "SIMULATED":
         return "REPLACE_SIMULATED"
 
     return "CONFLICT_REVIEW"
-
 
 def action_for_classification(classification):
     if classification == "CANDIDATE_NEW":
@@ -262,10 +267,12 @@ def main():
 
         for field, values in fields.items():
             status = classify(
+                field,
                 values["current"],
                 values["wpi"],
                 values["current_provenance"],
             )
+            
             classifications[field] = status
             actions[field] = action_for_classification(status)
 
