@@ -43,3 +43,11 @@ def test_cargo_rejects_latest_delivery_before_earliest_delivery():
             earliest_delivery=earliest,
             latest_delivery=latest,
         )
+
+
+def test_cargo_rejects_blank_material():
+    with pytest.raises(ValidationError):
+        CargoRequirementCreate(
+            material="   ",
+            quantity_mt=70000,
+        )

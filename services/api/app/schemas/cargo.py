@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class CargoRequirementCreate(BaseModel):
@@ -20,6 +20,14 @@ class CargoRequirementCreate(BaseModel):
     provenance: str = "USER_PROVIDED"
     source: str | None = None
     source_reference: str | None = None
+
+    @field_validator("material")
+    @classmethod
+    def validate_material(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("material must not be blank")
+        return value
 
     @model_validator(mode="after")
     def validate_delivery_window(self):
