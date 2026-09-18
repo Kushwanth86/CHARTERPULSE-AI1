@@ -48,3 +48,4 @@ class CargoRequirementResponse(CargoRequirementCreate):
 
     created_at: datetime
     updated_at: datetime
+        
