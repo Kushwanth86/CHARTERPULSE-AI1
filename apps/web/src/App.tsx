@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
-import { evaluateDecision, listFreightForecasts, recordHumanDecision, type DecisionResponse, type FreightForecast, type HumanDecisionResponse } from "./api";
+import { evaluateDecision, listFreightForecasts, recordHumanDecision, type DecisionResponse, type FreightForecast as FreightForecastData, type HumanDecisionResponse } from "./api";
 import type { ProcurementContext } from "./pages/NewProcurement";
 import NewProcurement from "./pages/NewProcurement";
 import MarketIntelligence from "./pages/MarketIntelligence";
@@ -28,7 +28,7 @@ function CommandCenter({ procurement, decision, onDecision, human, onHuman, navi
 }
 
 export default function App() {
-  const [active, setActive] = useState("Command Center"); const [procurement, setProcurement] = useState<ProcurementContext | null>(null); const [decision, setDecision] = useState<DecisionResponse | null>(null); const [human, setHuman] = useState<HumanDecisionResponse | null>(null); const [forecast, setForecast] = useState<FreightForecast | null>(null); const [audit, setAudit] = useState<AuditEvent[]>(() => readAudit());
+  const [active, setActive] = useState("Command Center"); const [procurement, setProcurement] = useState<ProcurementContext | null>(null); const [decision, setDecision] = useState<DecisionResponse | null>(null); const [human, setHuman] = useState<HumanDecisionResponse | null>(null); const [forecast, setForecast] = useState<FreightForecastData | null>(null); const [audit, setAudit] = useState<AuditEvent[]>(() => readAudit());
   useEffect(() => { listFreightForecasts().then(f => setForecast(f[0] || null)).catch(() => setForecast(null)); }, [decision]);
   function recordAudit(event: AuditEvent) { writeAudit(event); setAudit(readAudit()); }
   async function created(p: ProcurementContext) { setProcurement(p); setActive("Command Center"); try { const forecasts = await listFreightForecasts(); const d = await evaluateDecision(p.cargo.quantity_mt, 7, p.cargo.id, forecasts[0]?.id); setDecision(d); recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: p.cargo.id }); } catch { setDecision(null); } }
