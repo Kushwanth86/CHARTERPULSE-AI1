@@ -1,6 +1,6 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
 export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
@@ -78,8 +78,30 @@ export async function listVessels(): Promise<Vessel[]> { return unwrapList(await
 export async function listMarketObservations(): Promise<MarketObservation[]> {
   try { const primary = unwrapList(await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500")); return primary.length ? [...primary, ...REFERENCE_MARKET_OBSERVATIONS] : REFERENCE_MARKET_OBSERVATIONS; } catch { return REFERENCE_MARKET_OBSERVATIONS; }
 }
-export async function listFreightForecasts(): Promise<FreightForecast[]> {
-  try { const primary = unwrapList(await request<ListEnvelope<FreightForecast>>("/api/v1/forecasts/freight?limit=100")); return primary.length ? primary : [REFERENCE_FORECAST]; } catch { return [REFERENCE_FORECAST]; }
+export async function listFreightForecasts(
+  originLocationId?: string,
+  destinationLocationId?: string,
+  vesselClass?: string,
+): Promise<FreightForecast[]> {
+  const params = new URLSearchParams();
+
+  if (originLocationId) params.set("origin_location_id", originLocationId);
+  if (destinationLocationId) params.set("destination_location_id", destinationLocationId);
+  if (vesselClass) params.set("vessel_class", vesselClass);
+
+  params.set("limit", "100");
+
+  try {
+    const primary = unwrapList(
+      await request<ListEnvelope<FreightForecast>>(
+        `/api/v1/forecasts/freight?${params.toString()}`,
+      ),
+    );
+
+    return primary;
+  } catch {
+    return [];
+  }
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
 export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID, forecastId: string = TEST_FORECAST_ID): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }

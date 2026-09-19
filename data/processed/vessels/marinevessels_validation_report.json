@@ -1,0 +1,45 @@
+{
+  "source": "MarineVessels",
+  "source_file": "data\\sources\\vessels\\marinevessels\\data\\MarineVessels.rda",
+  "source_rows": 63701,
+  "normalized_rows": 63701,
+  "quality": {
+    "source_rows": 63701,
+    "invalid_imo": 0,
+    "invalid_mmsi": 0,
+    "invalid_draught": 90,
+    "invalid_length": 20,
+    "invalid_beam": 15
+  },
+  "identity": {
+    "unique_imo_values": 26606,
+    "duplicate_imo_values": 5,
+    "duplicate_imo_rows": 5,
+    "unique_mmsi_values": 26611,
+    "duplicate_mmsi_values": 0,
+    "duplicate_mmsi_rows": 0,
+    "classification_counts": {
+      "REFERENCE_ONLY": 37090,
+      "INGESTABLE": 26601,
+      "AMBIGUOUS_IDENTITY": 10
+    }
+  },
+  "policy": {
+    "mode": "READ_ONLY",
+    "supabase_writes": false,
+    "missing_values": "preserved_as_null",
+    "bad_fields": "nullified_individually",
+    "duplicate_identity": "excluded_from_production_ingestion",
+    "reference_only": "retained_in_normalized_dataset",
+    "provenance": "PUBLIC_PROXY",
+    "dimension_limits": {
+      "max_draft_m": 30.0,
+      "max_loa_m": 500.0,
+      "max_beam_m": 80.0
+    }
+  },
+  "outputs": {
+    "normalized": "data\\processed\\vessels\\marinevessels_normalized.csv",
+    "ambiguous_identity": "data\\processed\\vessels\\marinevessels_ambiguous_identity.csv"
+  }
+}
