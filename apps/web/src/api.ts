@@ -1,6 +1,6 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
 export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
