@@ -1,4 +1,4 @@
-﻿from uuid import UUID
+from uuid import UUID
 
 from services.api.app.intelligence.freight_forecast import (
     FreightForecastEngine,
@@ -34,6 +34,22 @@ class ForecastService:
             limit=500,
         )
 
+        provenance = "FORECAST"
+
+        # If the exact route has no observations, use the available
+        # freight market series as the statistical reference rather
+        # than inventing a route-specific price.
+        if not observations and (
+            payload.origin_location_id
+            or payload.destination_location_id
+            or payload.vessel_class
+        ):
+            observations = self.market_repository.list(
+                metric=payload.metric,
+                limit=500,
+            )
+            provenance = "FORECAST_MARKET_REFERENCE"
+
         result = self.engine.forecast(
             observations=observations,
             horizon_days=payload.forecast_horizon_days,
@@ -57,6 +73,7 @@ class ForecastService:
                 ),
                 "unit": payload.unit,
                 "currency": payload.currency,
+                "provenance": provenance,
             }
         )
 
@@ -70,9 +87,33 @@ class ForecastService:
         limit: int = 100,
     ) -> list[dict]:
 
-        return self.forecast_repository.list(
+        forecasts = self.forecast_repository.list(
             origin_location_id=origin_location_id,
             destination_location_id=destination_location_id,
             vessel_class=vessel_class,
             limit=limit,
         )
+
+        if forecasts:
+            return forecasts
+
+        # Lazily materialize a route forecast on first request. This
+        # keeps the Decision Room usable without fabricating a price:
+        # the forecast engine still requires real market observations.
+        if origin_location_id or destination_location_id or vessel_class:
+            try:
+                generated = self.generate(
+                    FreightForecastRequest(
+                        origin_location_id=origin_location_id,
+                        destination_location_id=destination_location_id,
+                        vessel_class=vessel_class,
+                        forecast_horizon_days=7,
+                    )
+                )
+                return [generated]
+            except ValueError:
+                # No usable market observations exist. Preserve the
+                # existing empty-list contract for the frontend.
+                return []
+
+        return forecasts
