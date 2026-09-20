@@ -28,6 +28,8 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = (options?.method ?? "GET").toUpperCase();
+  const retryableMethod = method === "GET" || method === "HEAD" || method === "OPTIONS";
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
@@ -50,13 +52,13 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       const error = new Error(`API ${response.status}: ${text || response.statusText}`);
       lastError = error;
 
-      if (!RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_REQUEST_ATTEMPTS) {
+      if (!retryableMethod || !RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_REQUEST_ATTEMPTS) {
         throw error;
       }
     } catch (error) {
       lastError = error;
 
-      if (attempt === MAX_REQUEST_ATTEMPTS) {
+      if (attempt === MAX_REQUEST_ATTEMPTS || !retryableMethod) {
         if (error instanceof DOMException && error.name === "AbortError") {
           throw new Error(`API request timed out after ${REQUEST_TIMEOUT_MS}ms: ${path}`);
         }
