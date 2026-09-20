@@ -104,4 +104,20 @@ export async function listFreightForecasts(
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
 export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID, forecastId: string = TEST_FORECAST_ID): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }
-export async function recordHumanDecision(decisionRunId: string, action: "APPROVE" | "MODIFY" | "REJECT", reason: string): Promise<HumanDecisionResponse> { return request<HumanDecisionResponse>("/api/v1/decisions/human", { method: "POST", body: JSON.stringify({ decision_run_id: decisionRunId, action, modified_parameters: {}, reason, actor_reference: "CHARTERPULSE_WEB_USER" }) }); }
+export async function recordHumanDecision(
+  decisionRunId: string,
+  action: "APPROVE" | "MODIFY" | "REJECT",
+  reason: string,
+  modifiedParameters: Record<string, unknown> = {},
+): Promise<HumanDecisionResponse> {
+  return request<HumanDecisionResponse>("/api/v1/decisions/human", {
+    method: "POST",
+    body: JSON.stringify({
+      decision_run_id: decisionRunId,
+      action,
+      modified_parameters: modifiedParameters,
+      reason,
+      actor_reference: "CHARTERPULSE_WEB_USER",
+    }),
+  });
+}
