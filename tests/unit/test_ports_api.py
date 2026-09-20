@@ -29,8 +29,8 @@ class FakeQuery:
 
 
 class FakeClient:
-    def __init__(self, rows):
-        self.query = FakeQuery(rows)
+    def __init__(self, query):
+        self.query = query
 
     def table(self, _name):
         return self.query
@@ -45,11 +45,11 @@ def test_ports_route_applies_iso2_prefix_filter(monkeypatch):
     )
     monkeypatch.setattr(
         "services.api.app.api.ports.get_supabase_client",
-        lambda: FakeClient(query.rows),
+        lambda: FakeClient(query),
     )
 
     result = list_ports(country_code="in", limit=100)
 
-    assert query.like_args is None or query.like_args == ("unlocode", "IN%")
+    assert query.like_args == ("unlocode", "IN%")
     assert result["count"] == 2
     assert all(row["unlocode"].startswith("IN") for row in result["data"])
