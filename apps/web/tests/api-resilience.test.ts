@@ -26,17 +26,17 @@ test("request retries transient 502 responses and succeeds", async () => {
   }
 });
 
-test("freight forecast falls back to the explicit reference when the API is unavailable", async () => {
+test("freight forecast surfaces a persistent API failure instead of masking it as no data", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => {
-    throw new Error("network unavailable");
-  }) as typeof fetch;
+  globalThis.fetch = (async () =>
+    new Response("bad gateway", { status: 502 })) as typeof fetch;
 
   try {
     const { listFreightForecasts } = await import("../src/api.ts");
-    const result = await listFreightForecasts("origin", "destination");
-    assert.equal(result.length, 1);
-    assert.equal(result[0].provenance, "PUBLIC_PROXY");
+    await assert.rejects(
+      () => listFreightForecasts("origin", "destination"),
+      /API 502: bad gateway/,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
