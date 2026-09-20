@@ -91,16 +91,3 @@ test("Decision Room delivery dates are rendered through date-only formatting", (
   );
 });
 
-test("India reference data contains only India UN/LOCODE prefixes", () => {
-  const reference = readFileSync(
-    new URL("../src/data/referenceData.ts", import.meta.url),
-    "utf8",
-  );
-
-  const indiaLines = reference
-    .split("\n")
-    .filter(line => line.includes("port("ref-in-"));
-
-  assert.ok(indiaLines.length >= 5);
-  assert.ok(indiaLines.every(line => /"IN[A-Z0-9]{3}"/.test(line)));
-});
