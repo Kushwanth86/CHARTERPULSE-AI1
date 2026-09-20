@@ -33,7 +33,7 @@ jobs:
         run: npm ci
       - name: Run frontend regression tests
         working-directory: apps/web
-        run: node --test --experimental-strip-types tests/regressions.test.ts
+        run: npx --yes tsx --test tests/regressions.test.ts
       - name: Run production build
         working-directory: apps/web
         run: npm run build
