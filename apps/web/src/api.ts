@@ -19,10 +19,62 @@ type ListEnvelope<T> = T[] | { count?: number; data?: T[] };
 
 function unwrapList<T>(result: ListEnvelope<T>): T[] { return Array.isArray(result) ? result : Array.isArray(result.data) ? result.data : []; }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { headers: { "Content-Type": "application/json", ...(options?.headers || {}) }, ...options });
-  if (!response.ok) { const text = await response.text(); throw new Error(`API ${response.status}: ${text || response.statusText}`); }
-  return response.json();
+const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
+const MAX_REQUEST_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 15000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const signal = options?.signal ?? controller.signal;
+
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
+        ...options,
+        signal,
+      });
+
+      if (response.ok) {
+        return response.json();
+      }
+
+      const text = await response.text();
+      const error = new Error(`API ${response.status}: ${text || response.statusText}`);
+      lastError = error;
+
+      if (!RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_REQUEST_ATTEMPTS) {
+        throw error;
+      }
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === MAX_REQUEST_ATTEMPTS) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw new Error(`API request timed out after ${REQUEST_TIMEOUT_MS}ms: ${path}`);
+        }
+        throw error;
+      }
+
+      if (error instanceof Error && error.message.startsWith("API ") &&
+          !/^API (502|503|504):/.test(error.message)) {
+        throw error;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    await sleep(250 * attempt);
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("API request failed.");
 }
 
 function normalizeCountryCode(value: unknown): string { const raw = String(value ?? "").trim().toUpperCase(); return /^[A-Z]{2}$/.test(raw) ? raw : ""; }
@@ -109,8 +161,10 @@ export async function listFreightForecasts(
     );
 
     return primary;
-  } catch {
-    return [];
+  } catch (error) {
+    // Do not silently convert an unavailable API into "no forecasts".
+    // The caller can now distinguish a backend outage from a valid empty result.
+    throw error;
   }
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
