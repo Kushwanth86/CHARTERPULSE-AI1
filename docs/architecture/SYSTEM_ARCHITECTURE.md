@@ -1,4 +1,4 @@
-# CHARTERPULSE AI --- System Architecture
+python -m pytest tests -v# CHARTERPULSE AI --- System Architecture
 
 ## Purpose
 

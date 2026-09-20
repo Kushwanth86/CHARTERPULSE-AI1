@@ -1,7 +1,7 @@
-﻿from datetime import datetime
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class CargoRequirementCreate(BaseModel):
@@ -21,6 +21,26 @@ class CargoRequirementCreate(BaseModel):
     source: str | None = None
     source_reference: str | None = None
 
+    @field_validator("material")
+    @classmethod
+    def validate_material(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("material must not be blank")
+        return value
+
+    @model_validator(mode="after")
+    def validate_delivery_window(self):
+        if (
+            self.earliest_delivery is not None
+            and self.latest_delivery is not None
+            and self.latest_delivery < self.earliest_delivery
+        ):
+            raise ValueError(
+                "latest_delivery must be greater than or equal to earliest_delivery"
+            )
+        return self
+
 
 class CargoRequirementResponse(CargoRequirementCreate):
     id: UUID
@@ -28,3 +48,4 @@ class CargoRequirementResponse(CargoRequirementCreate):
 
     created_at: datetime
     updated_at: datetime
+        

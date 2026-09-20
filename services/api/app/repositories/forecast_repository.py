@@ -1,7 +1,8 @@
-﻿from uuid import UUID
+from uuid import UUID
 
 from services.api.app.repositories.supabase_client import (
     get_supabase_admin_client,
+    get_supabase_client,
 )
 
 
@@ -32,7 +33,7 @@ class ForecastRepository:
         limit: int = 100,
     ) -> list[dict]:
 
-        client = get_supabase_admin_client()
+        client = get_supabase_client()
 
         query = (
             client

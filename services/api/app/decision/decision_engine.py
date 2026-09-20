@@ -21,43 +21,31 @@ class DecisionRequest(BaseModel):
 
 class DecisionResponse(BaseModel):
     decision_run_id: str | None = None
-
     decision_status: str
     recommendation: str
-
     cargo_quantity_mt: float
     currency: str
-
     forecast_p10: float
     forecast_p50: float
     forecast_p90: float
-
     now_expected_freight_cost: float
     now_p90_freight_cost: float
-
     wait_conservative_rate: float
     wait_conservative_cost: float
-
     wait_cost_difference: float
     wait_cost_difference_per_mt: float
-
     probability_now_exceeds_baseline: float
     risk_score: float
-
     provenance: str
     model_name: str | None
     forecast_id: UUID
-
     rationale: list[str]
     warnings: list[str]
-
     generated_at: datetime
 
 
 def _get_forecast(forecast_id: UUID) -> dict:
-
     client = get_supabase_admin_client()
-
     response = (
         client.table("freight_forecasts")
         .select("*")
@@ -77,9 +65,7 @@ def _get_forecast(forecast_id: UUID) -> dict:
 def evaluate_decision(
     payload: DecisionRequest,
 ) -> DecisionResponse:
-
     forecast = _get_forecast(payload.forecast_id)
-
     p10 = forecast.get("p10")
     p50 = forecast.get("p50")
     p90 = forecast.get("p90")
@@ -97,21 +83,16 @@ def evaluate_decision(
         baseline_rate=float(p50),
         simulations=payload.simulations,
         seed=payload.seed,
-    )
+        )
 
     now_expected_cost = risk.expected_cost
     now_p90_cost = risk.p90_cost
-
-    # Conservative WAIT representation.
-    # This is a forecast-derived scenario, not an observed
-    # future market price.
     wait_rate = float(p90)
     wait_cost = wait_rate * payload.cargo_quantity_mt
-
     difference = wait_cost - now_expected_cost
-    difference_per_mt = (
-        difference / payload.cargo_quantity_mt
-    )
+    difference_per_mt = difference / payload.cargo_quantity_mt
+
+    provenance = forecast.get("provenance") or "FORECAST"
 
     rationale = [
         f"Forecast P50 is {float(p50):.4f} {payload.currency}/MT.",
@@ -178,12 +159,10 @@ def evaluate_decision(
             risk.probability_cost_above_baseline
         ),
         risk_score=risk.risk_score,
-        provenance="FORECAST",
+        provenance=provenance,
         model_name=forecast.get("model_name"),
         forecast_id=payload.forecast_id,
         rationale=rationale,
         warnings=warnings,
         generated_at=datetime.now(timezone.utc),
     )
-
-

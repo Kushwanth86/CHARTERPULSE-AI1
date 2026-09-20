@@ -8,3 +8,13 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Generated WPI processing artifacts
+data/processed/wpi/
+
+# Local WPI backups
+wpi_local_backup/
+scripts/data/load_wpi_supabase.local_backup.py
+
+# Supabase CLI local state
+supabase/.temp/

@@ -1,6 +1,5 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
 export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
@@ -63,7 +62,18 @@ export async function listLocations(): Promise<Location[]> { return listLocation
 
 export async function listPorts(countryCode?: string): Promise<Port[]> {
   const normalized = normalizeCountryCode(countryCode); const query = normalized ? `?country_code=${encodeURIComponent(normalized)}&limit=1000` : "?limit=1000";
-  try { const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`)); const validPrimary = primary.filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>)); if (validPrimary.length) return validPrimary; } catch { /* deterministic reference data below */ }
+  try {
+    const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
+    const validPrimary = primary
+      .filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>))
+      .filter(p => {
+        if (!normalized) return true;
+        const raw = p as unknown as Record<string, unknown>;
+        return countryCodeFromRecord(raw) === normalized ||
+          unlocodeFromRecord(raw).slice(0, 2) === normalized;
+      });
+    if (validPrimary.length) return validPrimary;
+  } catch { /* deterministic reference data below */ }
   const locationPorts = (await listLocationsRaw()).map(location => locationToPort(location, normalized)).filter((port): port is Port => Boolean(port));
   if (locationPorts.length) return locationPorts;
   return REFERENCE_PORTS.filter(p => !normalized || p.unlocode?.slice(0, 2) === normalized);
@@ -78,9 +88,47 @@ export async function listVessels(): Promise<Vessel[]> { return unwrapList(await
 export async function listMarketObservations(): Promise<MarketObservation[]> {
   try { const primary = unwrapList(await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500")); return primary.length ? [...primary, ...REFERENCE_MARKET_OBSERVATIONS] : REFERENCE_MARKET_OBSERVATIONS; } catch { return REFERENCE_MARKET_OBSERVATIONS; }
 }
-export async function listFreightForecasts(): Promise<FreightForecast[]> {
-  try { const primary = unwrapList(await request<ListEnvelope<FreightForecast>>("/api/v1/forecasts/freight?limit=100")); return primary.length ? primary : [REFERENCE_FORECAST]; } catch { return [REFERENCE_FORECAST]; }
+export async function listFreightForecasts(
+  originLocationId?: string,
+  destinationLocationId?: string,
+  vesselClass?: string,
+): Promise<FreightForecast[]> {
+  const params = new URLSearchParams();
+
+  if (originLocationId) params.set("origin_location_id", originLocationId);
+  if (destinationLocationId) params.set("destination_location_id", destinationLocationId);
+  if (vesselClass) params.set("vessel_class", vesselClass);
+
+  params.set("limit", "100");
+
+  try {
+    const primary = unwrapList(
+      await request<ListEnvelope<FreightForecast>>(
+        `/api/v1/forecasts/freight?${params.toString()}`,
+      ),
+    );
+
+    return primary;
+  } catch {
+    return [];
+  }
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
 export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID, forecastId: string = TEST_FORECAST_ID): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }
-export async function recordHumanDecision(decisionRunId: string, action: "APPROVE" | "MODIFY" | "REJECT", reason: string): Promise<HumanDecisionResponse> { return request<HumanDecisionResponse>("/api/v1/decisions/human", { method: "POST", body: JSON.stringify({ decision_run_id: decisionRunId, action, modified_parameters: {}, reason, actor_reference: "CHARTERPULSE_WEB_USER" }) }); }
+export async function recordHumanDecision(
+  decisionRunId: string,
+  action: "APPROVE" | "MODIFY" | "REJECT",
+  reason: string,
+  modifiedParameters: Record<string, unknown> = {},
+): Promise<HumanDecisionResponse> {
+  return request<HumanDecisionResponse>("/api/v1/decisions/human", {
+    method: "POST",
+    body: JSON.stringify({
+      decision_run_id: decisionRunId,
+      action,
+      modified_parameters: modifiedParameters,
+      reason,
+      actor_reference: "CHARTERPULSE_WEB_USER",
+    }),
+  });
+}
