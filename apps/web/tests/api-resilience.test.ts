@@ -41,3 +41,24 @@ test("freight forecast surfaces a persistent API failure instead of masking it a
     globalThis.fetch = originalFetch;
   }
 });
+
+test("request does not retry non-idempotent POST operations", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response("bad gateway", { status: 502 });
+  }) as typeof fetch;
+
+  try {
+    const { request } = await import("../src/api.ts");
+    await assert.rejects(
+      () => request("/api/v1/cargo", { method: "POST", body: "{}" }),
+      /API 502: bad gateway/,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
