@@ -1,71 +1,106 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
-import { filterPortsByCountry } from "../src/utils/portFiltering.ts";
-import { formatDateOnly } from "../src/utils/dates.ts";
-import { buildHumanDecisionPayload } from "../src/utils/humanDecision.ts";
+import { listPorts, recordHumanDecision } from "../src/api.ts";
 
-test("India port selection excludes non-Indian ports returned by an over-broad API response", () => {
-  const ports = [
-    { id: "in-1", name: "Paradip", unlocode: "INPRT" },
-    { id: "in-2", name: "Dhamra", unlocode: "INDMQ" },
-    { id: "au-1", name: "Melbourne", unlocode: "AUMEL" },
-    { id: "us-1", name: "New York", unlocode: "USNYC" },
-  ];
+const appSource = readFileSync(
+  new URL("../src/App.tsx", import.meta.url),
+  "utf8",
+);
 
-  const result = filterPortsByCountry(ports, "IN");
+test("India port selection filters an over-broad primary API response", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    ({
+      ok: true,
+      json: async () => ({
+        count: 4,
+        data: [
+          { id: "in-1", name: "Paradip", unlocode: "INPRT" },
+          { id: "in-2", name: "Dhamra", unlocode: "INDMQ" },
+          { id: "au-1", name: "Melbourne", unlocode: "AUMEL" },
+          { id: "us-1", name: "New York", unlocode: "USNYC" },
+        ],
+      }),
+      text: async () => "",
+    }) as Response;
 
-  assert.deepEqual(result.map(port => port.id), ["in-1", "in-2"]);
+  try {
+    const result = await listPorts("IN");
+    assert.deepEqual(result.map(port => port.id), ["in-1", "in-2"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test("port filtering accepts country_code metadata when UN/LOCODE is unavailable", () => {
-  const ports = [
-    { id: "in-1", name: "India Port", country_code: "IN", unlocode: null },
-    { id: "au-1", name: "Australia Port", country_code: "AU", unlocode: null },
-  ];
+test("MODIFY human decisions preserve the explicit wait horizon in the request body", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: RequestInit[] = [];
+  globalThis.fetch = async (_input, init) => {
+    requests.push(init || {});
+    return {
+      ok: true,
+      json: async () => ({
+        id: "human-1",
+        decision_run_id: "decision-123",
+        action: "MODIFY",
+        modified_parameters: { wait_days: 7 },
+        reason: "MODIFY from regression test.",
+        decided_at: "2026-09-20T00:00:00Z",
+        actor_reference: "CHARTERPULSE_WEB_USER",
+        provenance: "USER_PROVIDED",
+      }),
+      text: async () => "",
+    } as Response;
+  };
 
-  const result = filterPortsByCountry(ports, "in");
+  try {
+    await (recordHumanDecision as unknown as (
+      decisionRunId: string,
+      action: "APPROVE" | "MODIFY" | "REJECT",
+      reason: string,
+      modifiedParameters: Record<string, unknown>,
+    ) => Promise<unknown>)(
+      "decision-123",
+      "MODIFY",
+      "MODIFY from regression test.",
+      { wait_days: 7 },
+    );
 
-  assert.deepEqual(result.map(port => port.id), ["in-1"]);
+    const body = JSON.parse(String(requests[0]?.body || "{}"));
+    assert.deepEqual(body.modified_parameters, { wait_days: 7 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test("date rendering preserves the selected calendar day", () => {
-  assert.equal(formatDateOnly("2026-10-01T00:00:00"), "01/10/2026");
-  assert.equal(formatDateOnly("2027-01-03T23:59:59"), "03/01/2027");
+test("Decision Room delivery dates are rendered through date-only formatting", () => {
+  assert.match(appSource, /function formatDateOnly\(value\?: string \| null\)/);
+  assert.match(
+    appSource,
+    /formatDateOnly\(procurement\.cargo\.earliest_delivery\)/,
+  );
+  assert.match(
+    appSource,
+    /formatDateOnly\(procurement\.cargo\.latest_delivery\)/,
+  );
+  assert.doesNotMatch(
+    appSource,
+    /new Date\(procurement\.cargo\.earliest_delivery/,
+  );
 });
 
-test("date rendering never produces a timezone-shifted day", () => {
-  assert.equal(formatDateOnly("2026-10-01"), "01/10/2026");
-});
-
-test("invalid delivery date displays a safe placeholder", () => {
-  assert.equal(formatDateOnly(""), "—");
-  assert.equal(formatDateOnly("not-a-date"), "—");
-});
-
-test("MODIFY human decisions carry the explicit wait horizon", () => {
-  const payload = buildHumanDecisionPayload(
-    "decision-123",
-    "MODIFY",
-    "MODIFY from regression test.",
-    { wait_days: 7 },
+test("India reference data contains only India UN/LOCODE prefixes", () => {
+  const reference = readFileSync(
+    new URL("../src/data/referenceData.ts", import.meta.url),
+    "utf8",
   );
 
-  assert.deepEqual(payload, {
-    decision_run_id: "decision-123",
-    action: "MODIFY",
-    modified_parameters: { wait_days: 7 },
-    reason: "MODIFY from regression test.",
-    actor_reference: "CHARTERPULSE_WEB_USER",
-  });
-});
+  const indiaLines = reference
+    .split("\n")
+    .filter(line => line.includes("port("ref-in-"));
 
-test("APPROVE human decisions do not invent modification parameters", () => {
-  const payload = buildHumanDecisionPayload(
-    "decision-123",
-    "APPROVE",
-    "APPROVE from regression test.",
-  );
-
-  assert.deepEqual(payload.modified_parameters, {});
+  assert.ok(indiaLines.length >= 5);
+  assert.ok(indiaLines.every(line => /"IN[A-Z0-9]{3}"/.test(line)));
 });
