@@ -62,7 +62,18 @@ export async function listLocations(): Promise<Location[]> { return listLocation
 
 export async function listPorts(countryCode?: string): Promise<Port[]> {
   const normalized = normalizeCountryCode(countryCode); const query = normalized ? `?country_code=${encodeURIComponent(normalized)}&limit=1000` : "?limit=1000";
-  try { const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`)); const validPrimary = primary.filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>)); if (validPrimary.length) return validPrimary; } catch { /* deterministic reference data below */ }
+  try {
+    const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
+    const validPrimary = primary
+      .filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>))
+      .filter(p => {
+        if (!normalized) return true;
+        const raw = p as unknown as Record<string, unknown>;
+        return countryCodeFromRecord(raw) === normalized ||
+          unlocodeFromRecord(raw).slice(0, 2) === normalized;
+      });
+    if (validPrimary.length) return validPrimary;
+  } catch { /* deterministic reference data below */ }
   const locationPorts = (await listLocationsRaw()).map(location => locationToPort(location, normalized)).filter((port): port is Port => Boolean(port));
   if (locationPorts.length) return locationPorts;
   return REFERENCE_PORTS.filter(p => !normalized || p.unlocode?.slice(0, 2) === normalized);
