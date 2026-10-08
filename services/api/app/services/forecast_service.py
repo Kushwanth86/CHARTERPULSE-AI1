@@ -59,7 +59,7 @@ class ForecastService:
             limit=500,
         )
 
-        provenance = "FORECAST"
+        input_provenance = "MARKET_OBSERVATION"
 
         if not observations and (
             payload.origin_location_id
@@ -70,16 +70,23 @@ class ForecastService:
                 metric=payload.metric,
                 limit=500,
             )
-            provenance = "FORECAST_MARKET_REFERENCE"
+            input_provenance = (
+                "FORECAST_MARKET_REFERENCE"
+                if observations
+                else "PUBLIC_PROXY_REFERENCE"
+            )
 
         if not observations:
             observations = REFERENCE_FREIGHT_OBSERVATIONS
-            provenance = "PUBLIC_PROXY_REFERENCE"
+            input_provenance = "PUBLIC_PROXY_REFERENCE"
 
         result = self.engine.forecast(
             observations=observations,
             horizon_days=payload.forecast_horizon_days,
         )
+
+        metadata = dict(result.get("metadata") or {})
+        metadata["input_provenance"] = input_provenance
 
         result.update(
             {
@@ -99,7 +106,8 @@ class ForecastService:
                 ),
                 "unit": payload.unit,
                 "currency": payload.currency,
-                "provenance": provenance,
+                "provenance": "FORECAST",
+                "metadata": metadata,
             }
         )
 
