@@ -76,5 +76,5 @@ def test_decision_service_persists_all_workflow_snapshots(monkeypatch):
 
     assert result.decision_run_id is not None
     assert fake.table_instance.inserted["forecast_snapshot"]["route_snapshot"] == {"status": "READY"}
-    assert fake.table_instance.inserted["cost_snapshot"]["status"] == "PARTIAL"
+    assert fake.table_instance.inserted["cost_snapshot"]["now_expected_freight_cost"] == 1750000
     assert fake.table_instance.inserted["feasibility_snapshot"]["status"] == "PENDING"
