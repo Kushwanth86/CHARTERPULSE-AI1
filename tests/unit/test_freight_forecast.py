@@ -50,7 +50,7 @@ def test_forecast_exposes_model_and_backtest_metrics():
     )
 
     assert result["model_name"] == "robust_recency_trend_baseline"
-    assert result["model_version"] == "1.0.0"
+    assert result["model_version"] == "1.1.0"
     assert result["mae"] is not None
     assert result["rmse"] is not None
     assert result["smape"] is not None
