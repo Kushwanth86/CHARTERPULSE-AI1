@@ -22,10 +22,11 @@ class FreightForecastEngine:
       - calculate residual uncertainty
       - produce P10/P50/P90
       - calculate simple holdout metrics where possible
+      - score confidence from independent evidence and stability
     """
 
     model_name = "robust_recency_trend_baseline"
-    model_version = "1.0.0"
+    model_version = "1.1.0"
 
     def _values(self, observations: list[dict]) -> np.ndarray:
         values = []
@@ -241,7 +242,7 @@ class FreightForecastEngine:
             observations
         )
 
-        sample_score = min(
+        evidence_score = min(
             1.0,
             len(values) / 30.0,
         )
@@ -260,15 +261,14 @@ class FreightForecastEngine:
             ),
         )
 
-        confidence = (
-            0.55 * sample_score
-            + 0.45 * stability_score
-        )
-
+        # Confidence is a model-confidence score, not a probability.
+        # Both evidence volume and forecast stability must be strong.
+        # Multiplication prevents a strong trend from masking a tiny
+        # sample and makes materially different dispersion visible.
         confidence = float(
             max(
                 0.0,
-                min(1.0, confidence),
+                min(1.0, evidence_score * stability_score),
             )
         )
 
@@ -301,6 +301,9 @@ class FreightForecastEngine:
                 "maximum_observation": float(np.max(values)),
                 "observed_median": float(median(values)),
                 "uncertainty_scale": float(uncertainty),
+                "evidence_score": float(evidence_score),
+                "stability_score": float(stability_score),
+                "confidence_type": "model_confidence_score",
                 "forecast_method": (
                     "recency_weighted_linear_trend"
                     if len(values) >= 3
