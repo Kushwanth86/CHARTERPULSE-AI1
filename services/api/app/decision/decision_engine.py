@@ -42,6 +42,9 @@ class DecisionResponse(BaseModel):
     rationale: list[str]
     warnings: list[str]
     generated_at: datetime
+    route_snapshot: dict = Field(default_factory=dict)
+    cost_snapshot: dict = Field(default_factory=dict)
+    feasibility_snapshot: dict = Field(default_factory=dict)
 
 
 def _get_forecast(forecast_id: UUID) -> dict:
@@ -165,4 +168,33 @@ def evaluate_decision(
         rationale=rationale,
         warnings=warnings,
         generated_at=datetime.now(timezone.utc),
+        route_snapshot={
+            "status": "READY" if forecast.get("origin_location_id") and forecast.get("destination_location_id") else "PENDING",
+            "origin_location_id": forecast.get("origin_location_id"),
+            "destination_location_id": forecast.get("destination_location_id"),
+            "vessel_class": forecast.get("vessel_class"),
+        },
+        cost_snapshot={
+            "status": "PARTIAL",
+            "known_components": ["ocean_freight"],
+            "missing_components": [
+                "bunker",
+                "port",
+                "canal",
+                "loading",
+                "discharge",
+                "demurrage",
+                "storage",
+                "inland",
+                "insurance",
+                "other",
+            ],
+            "currency": payload.currency,
+            "now_expected_freight_cost": round(now_expected_cost, 2),
+            "now_p90_freight_cost": round(now_p90_cost, 2),
+        },
+        feasibility_snapshot={
+            "status": "PENDING",
+            "reason": "Vessel and port constraint inputs are not part of the decision request.",
+        },
     )
