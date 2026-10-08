@@ -35,3 +35,54 @@ def test_decision_response_exposes_charter_workflow_snapshots():
     assert response.route_snapshot["status"] == "READY"
     assert response.cost_snapshot["status"] == "PARTIAL"
     assert response.feasibility_snapshot["status"] == "PENDING"
+
+def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
+    from uuid import uuid4
+
+    class Risk:
+        expected_cost = 1750000.0
+        p90_cost = 2100000.0
+        probability_cost_above_baseline = 0.5
+        risk_score = 50.0
+
+    forecast_id = uuid4()
+    monkeypatch.setattr(
+        "services.api.app.decision.decision_engine._get_forecast",
+        lambda value: {
+            "id": str(forecast_id),
+            "p10": 20.0,
+            "p50": 25.0,
+            "p90": 30.0,
+            "origin_location_id": "origin-1",
+            "destination_location_id": "destination-1",
+            "vessel_class": "PANAMAX",
+            "provenance": "FORECAST",
+            "model_name": "robust_recency_trend_baseline",
+        },
+    )
+    monkeypatch.setattr(
+        "services.api.app.decision.decision_engine.simulate_freight_risk",
+        lambda **kwargs: Risk(),
+    )
+
+    from services.api.app.decision.decision_engine import (
+        DecisionRequest,
+        evaluate_decision,
+    )
+
+    response = evaluate_decision(
+        DecisionRequest(
+            forecast_id=forecast_id,
+            cargo_quantity_mt=70000,
+        )
+    )
+
+    assert response.route_snapshot == {
+        "status": "READY",
+        "origin_location_id": "origin-1",
+        "destination_location_id": "destination-1",
+        "vessel_class": "PANAMAX",
+    }
+    assert response.cost_snapshot["status"] == "PARTIAL"
+    assert response.cost_snapshot["now_expected_freight_cost"] == 1750000.0
+    assert response.feasibility_snapshot["status"] == "PENDING"
