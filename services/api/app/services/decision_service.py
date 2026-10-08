@@ -37,7 +37,8 @@ class DecisionService:
                 "p90": decision.forecast_p90,
                 "provenance": decision.provenance,
             },
-            "feasibility_snapshot": {},
+            "route_snapshot": decision.route_snapshot,
+            "feasibility_snapshot": decision.feasibility_snapshot,
             "cost_snapshot": {
                 "cargo_quantity_mt": decision.cargo_quantity_mt,
                 "currency": decision.currency,
