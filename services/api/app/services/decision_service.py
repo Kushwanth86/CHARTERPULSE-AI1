@@ -1,4 +1,5 @@
-﻿from services.api.app.decision.decision_engine import (
+﻿
+from services.api.app.decision.decision_engine import (
     DecisionRequest,
     DecisionResponse,
     evaluate_decision,
@@ -14,16 +15,17 @@ class DecisionService:
         self,
         payload: DecisionRequest,
     ) -> DecisionResponse:
-        # Keep the existing decision mathematics unchanged.
+        # Calculate the decision using the existing decision engine.
         decision = evaluate_decision(payload)
 
         supabase = get_supabase_admin_client()
 
-        # Persist the AI decision so that a human decision can reference it.
+        # Persist the AI decision for later human review.
+        # This is a freight-only estimate, not total delivered cost.
         row = {
             "recommendation": decision.recommendation,
             "recommendation_score": None,
-            "expected_total_cost": decision.now_expected_freight_cost,
+            "expected_total_cost": None,
             "expected_cost_unit": decision.currency,
             "expected_cost_currency": decision.currency,
             "risk_score": decision.risk_score,
@@ -36,9 +38,11 @@ class DecisionService:
                 "p50": decision.forecast_p50,
                 "p90": decision.forecast_p90,
                 "provenance": decision.provenance,
+                "route_snapshot": decision.route_snapshot,
             },
-            "feasibility_snapshot": {},
+            "feasibility_snapshot": decision.feasibility_snapshot,
             "cost_snapshot": {
+                **decision.cost_snapshot,
                 "cargo_quantity_mt": decision.cargo_quantity_mt,
                 "currency": decision.currency,
                 "now_expected_freight_cost": (
@@ -70,7 +74,7 @@ class DecisionService:
             "provenance": decision.provenance,
         }
 
-        # Attach cargo requirement when supplied by the request.
+        # Attach the cargo requirement when supplied.
         if getattr(payload, "cargo_requirement_id", None):
             row["cargo_requirement_id"] = str(
                 payload.cargo_requirement_id
@@ -90,7 +94,7 @@ class DecisionService:
 
         decision_run_id = str(result.data[0]["id"])
 
-        # Return the same decision plus its persisted run identifier.
+        # Return the decision with its persisted run identifier.
         return decision.model_copy(
             update={
                 "decision_run_id": decision_run_id,
