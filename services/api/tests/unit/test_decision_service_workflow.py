@@ -1,3 +1,4 @@
+
 from uuid import uuid4
 
 from services.api.app.decision.decision_engine import DecisionResponse
@@ -33,34 +34,47 @@ class FakeSupabase:
 
 def test_decision_service_persists_all_workflow_snapshots(monkeypatch):
     forecast_id = uuid4()
+
     decision = DecisionResponse(
         decision_status="PRELIMINARY",
         recommendation="CHARTER_NOW",
-        cargo_quantity_mt=70000,
+        cargo_quantity_mt=70_000,
         currency="USD",
-        forecast_p10=20,
-        forecast_p50=25,
-        forecast_p90=30,
-        now_expected_freight_cost=1750000,
-        now_p90_freight_cost=2100000,
-        wait_conservative_rate=30,
-        wait_conservative_cost=2100000,
-        wait_cost_difference=350000,
-        wait_cost_difference_per_mt=5,
+        forecast_p10=20.0,
+        forecast_p50=25.0,
+        forecast_p90=30.0,
+        now_expected_freight_cost=1_750_000.0,
+        now_p90_freight_cost=2_100_000.0,
+        wait_conservative_rate=30.0,
+        wait_conservative_cost=2_100_000.0,
+        wait_cost_difference=350_000.0,
+        wait_cost_difference_per_mt=5.0,
         probability_now_exceeds_baseline=0.5,
-        risk_score=50,
+        risk_score=50.0,
         provenance="FORECAST",
         model_name="robust_recency_trend_baseline",
         forecast_id=forecast_id,
         rationale=[],
         warnings=[],
         generated_at="2026-10-08T00:00:00Z",
-        route_snapshot={"status": "READY"},
-        cost_snapshot={"status": "PARTIAL"},
-        feasibility_snapshot={"status": "PENDING"},
+        route_snapshot={
+            "status": "IDENTIFIED",
+            "validation_status": "NOT_VALIDATED",
+        },
+        cost_snapshot={
+            "status": "PARTIAL",
+            "known_components": ["ocean_freight"],
+            "missing_components": ["bunker", "insurance"],
+            "now_expected_freight_cost": 1_750_000.0,
+        },
+        feasibility_snapshot={
+            "status": "PENDING",
+            "reason": "Vessel and port constraints have not been validated.",
+        },
     )
 
     fake = FakeSupabase()
+
     monkeypatch.setattr(
         "services.api.app.services.decision_service.evaluate_decision",
         lambda payload: decision,
@@ -71,10 +85,41 @@ def test_decision_service_persists_all_workflow_snapshots(monkeypatch):
     )
 
     result = DecisionService().evaluate(
-        type("Payload", (), {"cargo_requirement_id": None})()
+        type(
+            "Payload",
+            (),
+            {"cargo_requirement_id": None},
+        )()
     )
 
+    row = fake.table_instance.inserted
+
     assert result.decision_run_id is not None
-    assert fake.table_instance.inserted["forecast_snapshot"]["route_snapshot"] == {"status": "READY"}
-    assert fake.table_instance.inserted["cost_snapshot"]["now_expected_freight_cost"] == 1750000
-    assert fake.table_instance.inserted["feasibility_snapshot"]["status"] == "PENDING"
+
+    # Route information is persisted inside the forecast snapshot.
+    assert row["forecast_snapshot"]["route_snapshot"] == {
+        "status": "IDENTIFIED",
+        "validation_status": "NOT_VALIDATED",
+    }
+
+    # Cost evidence must preserve its completeness status.
+    assert row["cost_snapshot"]["status"] == "PARTIAL"
+    assert row["cost_snapshot"]["now_expected_freight_cost"] == (
+        1_750_000.0
+    )
+    assert row["cost_snapshot"]["known_components"] == [
+        "ocean_freight"
+    ]
+    assert "bunker" in row["cost_snapshot"]["missing_components"]
+
+    # Never store a freight-only estimate as total delivered cost.
+    assert row["expected_total_cost"] is None
+
+    assert row["feasibility_snapshot"]["status"] == "PENDING"
+
+    assert row["risk_snapshot"]["risk_score"] == 50.0
+    assert (
+        row["risk_snapshot"]["probability_now_exceeds_baseline"]
+        == 0.5
+    )
+
