@@ -1,4 +1,4 @@
-import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
+import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_PORTS } from "./data/referenceData";
 const API_BASE = "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
