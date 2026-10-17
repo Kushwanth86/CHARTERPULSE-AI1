@@ -81,14 +81,14 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
         )
     )
 
+    # The restored decision engine identifies the route but does not
+    # claim that the route has been validated.
     assert response.route_snapshot == {
-        "status": "NOT_ROUTE_SPECIFIC",
+        "status": "IDENTIFIED",
         "validation_status": "NOT_VALIDATED",
         "origin_location_id": "origin-1",
         "destination_location_id": "destination-1",
         "vessel_class": "PANAMAX",
-        "route_specific_observations": False,
-        "input_provenance": "FORECAST",
     }
 
     assert response.cost_snapshot["status"] == "PARTIAL"
