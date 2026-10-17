@@ -44,4 +44,41 @@ def test_reference_forecast_preserves_input_provenance(monkeypatch):
         "route_specific_observations"
         not in repository.payload["metadata"]
     )
-    
+
+def test_scoped_forecast_does_not_fall_back_to_unmatched_market_data(monkeypatch):
+    class EmptyScopedMarketRepository:
+        def __init__(self):
+            self.calls = []
+
+        def list(self, **kwargs):
+            self.calls.append(kwargs)
+            return []
+
+    class ForbiddenForecastRepository:
+        def create(self, payload):
+            raise AssertionError("A forecast must not be stored without matched observations.")
+
+    market = EmptyScopedMarketRepository()
+    monkeypatch.setattr(forecast_service, "MarketRepository", lambda: market)
+    monkeypatch.setattr(
+        forecast_service,
+        "ForecastRepository",
+        ForbiddenForecastRepository,
+    )
+
+    service = forecast_service.ForecastService()
+    request = FreightForecastRequest(
+        origin_location_id="00000000-0000-0000-0000-000000000001",
+        destination_location_id="00000000-0000-0000-0000-000000000002",
+        vessel_class="Panamax",
+    )
+
+    try:
+        service.generate(request)
+    except ValueError as exc:
+        assert "No market observations match" in str(exc)
+    else:
+        raise AssertionError("Expected a scoped forecast request to fail closed.")
+
+    assert len(market.calls) == 1
+    assert market.calls[0]["vessel_class"] == "Panamax"
