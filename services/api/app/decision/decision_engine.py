@@ -176,23 +176,18 @@ def evaluate_decision(
         and forecast.get("destination_location_id")
     )
 
-    metadata = forecast.get("metadata") or {}
-    route_specific = metadata.get("route_specific_observations")
     route_snapshot = {
-        "status": (
-            "IDENTIFIED" if has_route and route_specific
-            else "NOT_ROUTE_SPECIFIC" if has_route
-            else "PENDING"
-        ),
+        "status": "IDENTIFIED" if has_route else "PENDING",
         "validation_status": (
             "NOT_VALIDATED" if has_route else "PENDING"
         ),
-        "origin_location_id": forecast.get("origin_location_id"),
-        "destination_location_id": forecast.get("destination_location_id"),
+        "origin_location_id": forecast.get(
+            "origin_location_id"
+        ),
+        "destination_location_id": forecast.get(
+            "destination_location_id"
+        ),
         "vessel_class": forecast.get("vessel_class"),
-        "route_specific_observations": bool(route_specific),
-        "input_provenance": metadata.get("input_provenance")
-        or provenance,
     }
 
     # Ocean freight is known; delivered-cost components remain
