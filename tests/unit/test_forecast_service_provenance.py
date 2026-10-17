@@ -76,7 +76,7 @@ def test_scoped_forecast_does_not_fall_back_to_unmatched_market_data(monkeypatch
     try:
         service.generate(request)
     except ValueError as exc:
-        assert "No market observations match" in str(exc)
+        assert "No verified market observations match" in str(exc)
     else:
         raise AssertionError("Expected a scoped forecast request to fail closed.")
 
