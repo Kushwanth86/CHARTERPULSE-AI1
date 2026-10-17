@@ -87,6 +87,7 @@ class ForecastService:
 
         metadata = dict(result.get("metadata") or {})
         metadata["input_provenance"] = input_provenance
+        metadata["route_specific_observations"] = input_provenance == "MARKET_OBSERVATION"
 
         result.update(
             {
@@ -106,7 +107,10 @@ class ForecastService:
                 ),
                 "unit": payload.unit,
                 "currency": payload.currency,
-                "provenance": "FORECAST",
+                # Preserve the provenance of the inputs used. A forecast
+                # derived from generic fallback observations must not be
+                # presented as if it were based on route-specific market data.
+                "provenance": input_provenance,
                 "metadata": metadata,
             }
         )
