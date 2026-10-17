@@ -61,19 +61,18 @@ class ForecastService:
 
         input_provenance = "MARKET_OBSERVATION"
 
-        if not observations and (
+        scoped_request = bool(
             payload.origin_location_id
             or payload.destination_location_id
             or payload.vessel_class
-        ):
-            observations = self.market_repository.list(
-                metric=payload.metric,
-                limit=500,
-            )
-            input_provenance = (
-                "FORECAST_MARKET_REFERENCE"
-                if observations
-                else "PUBLIC_PROXY_REFERENCE"
+        )
+
+        # Never label broad-market or proxy observations as route/class-specific.
+        if not observations and scoped_request:
+            raise ValueError(
+                "No market observations match the requested route and vessel class. "
+                "A route-specific forecast cannot be generated until matching "
+                "market data is available."
             )
 
         if not observations:
