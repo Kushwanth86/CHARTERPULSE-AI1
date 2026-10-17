@@ -82,11 +82,13 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     )
 
     assert response.route_snapshot == {
-        "status": "IDENTIFIED",
+        "status": "NOT_ROUTE_SPECIFIC",
         "validation_status": "NOT_VALIDATED",
         "origin_location_id": "origin-1",
         "destination_location_id": "destination-1",
         "vessel_class": "PANAMAX",
+        "route_specific_observations": False,
+        "input_provenance": "FORECAST",
     }
 
     assert response.cost_snapshot["status"] == "PARTIAL"
@@ -101,4 +103,3 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     )
     assert response.feasibility_snapshot["status"] == "PENDING"
     assert response.decision_status == "PRELIMINARY"
-
