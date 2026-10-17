@@ -81,6 +81,8 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
         )
     )
 
+    # The restored decision engine identifies the route but does not
+    # claim that the route has been validated.
     assert response.route_snapshot == {
         "status": "IDENTIFIED",
         "validation_status": "NOT_VALIDATED",
@@ -101,4 +103,3 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     )
     assert response.feasibility_snapshot["status"] == "PENDING"
     assert response.decision_status == "PRELIMINARY"
-
