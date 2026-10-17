@@ -120,6 +120,7 @@ export default function App() {
     listFreightForecasts(
       procurement.cargo.origin_location_id ?? undefined,
       procurement.cargo.destination_location_id ?? undefined,
+      procurement.vesselClass ?? undefined,
     )
       .then((forecasts) =>
         setForecast(
@@ -127,6 +128,7 @@ export default function App() {
             forecasts,
             procurement.cargo.origin_location_id,
             procurement.cargo.destination_location_id,
+            procurement.vesselClass,
           ),
         ),
       )
