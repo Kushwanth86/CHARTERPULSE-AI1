@@ -2,7 +2,7 @@ from services.api.app.schemas.forecasts import FreightForecastRequest
 from services.api.app.services import forecast_service
 
 
-def test_reference_forecast_uses_database_compatible_provenance(monkeypatch):
+def test_reference_forecast_preserves_input_provenance(monkeypatch):
     class EmptyMarketRepository:
         def list(self, **kwargs):
             return []
@@ -30,5 +30,6 @@ def test_reference_forecast_uses_database_compatible_provenance(monkeypatch):
     service = forecast_service.ForecastService()
     service.generate(FreightForecastRequest())
 
-    assert repository.payload["provenance"] == "FORECAST"
+    assert repository.payload["provenance"] == "PUBLIC_PROXY_REFERENCE"
     assert repository.payload["metadata"]["input_provenance"] == "PUBLIC_PROXY_REFERENCE"
+    assert repository.payload["metadata"]["route_specific_observations"] is False
