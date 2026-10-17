@@ -59,25 +59,43 @@ class ForecastService:
             limit=500,
         )
 
-        input_provenance = "MARKET_OBSERVATION"
-
         scoped_request = bool(
             payload.origin_location_id
             or payload.destination_location_id
             or payload.vessel_class
         )
 
+        # Simulated scenario rows are useful for demos, never for real procurement
+        # decisions. Do not let them masquerade as observed market prices.
+        simulated = [
+            row for row in observations
+            if str(row.get("provenance", "")).upper() == "SIMULATED"
+        ]
+        observations = [
+            row for row in observations
+            if str(row.get("provenance", "")).upper() != "SIMULATED"
+        ]
+
+        if scoped_request and simulated:
+            raise ValueError(
+                "Matching records are simulated test data, not verified market "
+                "observations. A route/class-specific forecast requires verified "
+                "market data."
+            )
+
+        input_provenance = "MARKET_OBSERVATION"
+
         # Never label broad-market or proxy observations as route/class-specific.
         if not observations and scoped_request:
             raise ValueError(
-                "No market observations match the requested route and vessel class. "
-                "A route-specific forecast cannot be generated until matching "
-                "market data is available."
+                "No verified market observations match the requested route and "
+                "vessel class. A route-specific forecast cannot be generated "
+                "until matching data is available."
             )
 
         if not observations:
             observations = REFERENCE_FREIGHT_OBSERVATIONS
-            input_provenance = "PUBLIC_PROXY_REFERENCE"
+            input_provenance = "SIMULATED_REFERENCE"
 
         result = self.engine.forecast(
             observations=observations,
