@@ -140,7 +140,12 @@ export async function listCargo(): Promise<CargoRequirement[]> {
 export async function createCargo(payload: { cargo_type: string; material: string; quantity_mt: number; origin_location_id: string; destination_location_id: string; earliest_delivery: string; latest_delivery: string; priority: string; }): Promise<CargoRequirement> { return request<CargoRequirement>("/api/v1/cargo", { method: "POST", body: JSON.stringify({ ...payload, provenance: "USER_PROVIDED", source: "CHARTERPULSE_WEB", source_reference: "NEW_PROCUREMENT" }) }); }
 export async function listVessels(): Promise<Vessel[]> { return unwrapList(await request<ListEnvelope<Vessel>>("/api/v1/vessels?limit=500")); }
 export async function listMarketObservations(): Promise<MarketObservation[]> {
-  try { const primary = unwrapList(await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500")); return primary.length ? [...primary, ...REFERENCE_MARKET_OBSERVATIONS] : REFERENCE_MARKET_OBSERVATIONS; } catch { return REFERENCE_MARKET_OBSERVATIONS; }
+  // Market Intelligence must show persisted observations only. Reference examples
+  // are available in referenceData.ts for explicitly labelled demos, not blended
+  // into the live API response where they could look like observed market data.
+  return unwrapList(
+    await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500"),
+  );
 }
 export async function listFreightForecasts(
   originLocationId?: string,
