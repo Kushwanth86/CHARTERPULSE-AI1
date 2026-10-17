@@ -36,7 +36,7 @@ def test_reference_forecast_preserves_input_provenance(monkeypatch):
     assert repository.payload["provenance"] == "FORECAST"
     assert (
         repository.payload["metadata"]["input_provenance"]
-        == "PUBLIC_PROXY_REFERENCE"
+        == "SIMULATED_REFERENCE"
     )
 
     # The restored implementation does not add this metadata field.
@@ -82,3 +82,41 @@ def test_scoped_forecast_does_not_fall_back_to_unmatched_market_data(monkeypatch
 
     assert len(market.calls) == 1
     assert market.calls[0]["vessel_class"] == "Panamax"
+
+
+def test_scoped_forecast_rejects_simulated_market_observations(monkeypatch):
+    class SimulatedMarketRepository:
+        def list(self, **kwargs):
+            return [
+                {
+                    "metric": "OCEAN_FREIGHT",
+                    "value": 30.0,
+                    "unit": "USD/MT",
+                    "vessel_class": "PANAMAX",
+                    "provenance": "SIMULATED",
+                    "origin_location_id": None,
+                    "destination_location_id": None,
+                    "observed_at": "2026-09-05T00:00:00Z",
+                }
+            ]
+
+    class ForbiddenForecastRepository:
+        def create(self, payload):
+            raise AssertionError("Simulated data must not create a scoped forecast.")
+
+    monkeypatch.setattr(
+        forecast_service, "MarketRepository", SimulatedMarketRepository
+    )
+    monkeypatch.setattr(
+        forecast_service, "ForecastRepository", ForbiddenForecastRepository
+    )
+
+    service = forecast_service.ForecastService()
+    request = FreightForecastRequest(vessel_class="PANAMAX")
+
+    try:
+        service.generate(request)
+    except ValueError as exc:
+        assert "simulated test data" in str(exc)
+    else:
+        raise AssertionError("Expected simulated observations to be rejected.")
