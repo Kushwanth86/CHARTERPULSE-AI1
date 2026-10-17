@@ -3,11 +3,15 @@ import { createCargo, listCargo, listCountries, listPorts, type CargoRequirement
 import { REFERENCE_CARGO_TYPES, REFERENCE_MATERIALS } from "../data/referenceData";
 import CalendarPicker from "../components/common/CalendarPicker";
 
-export type ProcurementContext = { cargo: CargoRequirement; originPort: Port; destinationPort: Port; originCountry: Country; destinationCountry: Country };
+export type ProcurementContext = { cargo: CargoRequirement; originPort: Port; destinationPort: Port; originCountry: Country; destinationCountry: Country; vesselClass: string | null };
 type Props = { onCreated: (value: ProcurementContext) => void };
 type Option = { id: string; label: string; meta?: string };
 
 const code = (c: Country) => String(c.iso2 ?? c.country_code ?? c.code ?? "").slice(0, 2).toUpperCase();
+const vesselClassFromCargoType = (value: string): string | null => {
+  const match = value.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
+  return match ? match[1].charAt(0) + match[1].slice(1).toLowerCase() : null;
+};
 
 function SearchDropdown({ label, value, options, placeholder, disabled, helper, onChange }: { label: string; value: string; options: Option[]; placeholder: string; disabled?: boolean; helper?: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(""); const root = useRef<HTMLDivElement>(null); const selected = options.find(x => x.id === value);
@@ -39,7 +43,7 @@ export default function NewProcurement({ onCreated }: Props) {
 
   async function submit() {
     setError(""); if (!material || !cargoType || !oc || !dc || !op || !dp) return setError("Select material, cargo type, both countries and both ports."); if (fromDate > toDate) return setError("From Date must be on or before To Date."); setSaving(true);
-    try { const normalizedCargoType = cargoType.startsWith("DRY_BULK") ? "DRY_BULK" : cargoType; const cargo = await createCargo({ cargo_type: normalizedCargoType, material, quantity_mt: quantity, origin_location_id: op.location_id, destination_location_id: dp.location_id, earliest_delivery: `${fromDate}T00:00:00`, latest_delivery: `${toDate}T23:59:59`, priority }); onCreated({ cargo, originPort: op, destinationPort: dp, originCountry: oc, destinationCountry: dc }); }
+    try { const normalizedCargoType = cargoType.startsWith("DRY_BULK") ? "DRY_BULK" : cargoType; const cargo = await createCargo({ cargo_type: normalizedCargoType, material, quantity_mt: quantity, origin_location_id: op.location_id, destination_location_id: dp.location_id, earliest_delivery: `${fromDate}T00:00:00`, latest_delivery: `${toDate}T23:59:59`, priority }); onCreated({ cargo, originPort: op, destinationPort: dp, originCountry: oc, destinationCountry: dc, vesselClass: vesselClassFromCargoType(cargoType) }); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to create procurement."); } finally { setSaving(false); }
   }
 
