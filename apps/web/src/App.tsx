@@ -35,6 +35,7 @@ function selectRouteForecast(
   forecasts: FreightForecastData[],
   originLocationId?: string | null,
   destinationLocationId?: string | null,
+  vesselClass?: string | null,
 ): FreightForecastData | null {
   if (!originLocationId || !destinationLocationId) return null;
 
@@ -42,7 +43,8 @@ function selectRouteForecast(
     .filter(
       (forecast) =>
         forecast.origin_location_id === originLocationId &&
-        forecast.destination_location_id === destinationLocationId,
+        forecast.destination_location_id === destinationLocationId &&
+        (!vesselClass || String(forecast.vessel_class ?? "").trim().toLowerCase() === vesselClass.trim().toLowerCase()),
     )
     .sort(
       (a, b) =>
@@ -61,15 +63,17 @@ function CommandCenter({ procurement, decision, onDecision, human, onHuman, navi
       const forecasts = await listFreightForecasts(
         procurement.cargo.origin_location_id ?? undefined,
         procurement.cargo.destination_location_id ?? undefined,
+        procurement.vesselClass ?? undefined,
       );
       const selectedForecast = selectRouteForecast(
         forecasts,
         procurement.cargo.origin_location_id,
         procurement.cargo.destination_location_id,
+        procurement.vesselClass,
       );
       if (!selectedForecast) {
         throw new Error(
-          "No route-matched freight forecast exists for the selected origin and destination. A generic forecast will not be used.",
+          "No freight forecast matches the selected route and vessel class. A mismatched forecast will not be used.",
         );
       }
       const d = await evaluateDecision(
@@ -116,6 +120,7 @@ export default function App() {
     listFreightForecasts(
       procurement.cargo.origin_location_id ?? undefined,
       procurement.cargo.destination_location_id ?? undefined,
+      procurement.vesselClass ?? undefined,
     )
       .then((forecasts) =>
         setForecast(
@@ -123,6 +128,7 @@ export default function App() {
             forecasts,
             procurement.cargo.origin_location_id,
             procurement.cargo.destination_location_id,
+            procurement.vesselClass,
           ),
         ),
       )
@@ -136,11 +142,13 @@ export default function App() {
       const forecasts = await listFreightForecasts(
         p.cargo.origin_location_id ?? undefined,
         p.cargo.destination_location_id ?? undefined,
+        p.vesselClass ?? undefined,
       );
       const selectedForecast = selectRouteForecast(
         forecasts,
         p.cargo.origin_location_id,
         p.cargo.destination_location_id,
+        p.vesselClass,
       );
       if (!selectedForecast) {
         throw new Error(
