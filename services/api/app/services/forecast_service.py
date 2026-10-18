@@ -130,6 +130,76 @@ class ForecastService:
 
         return self.forecast_repository.create(result)
 
+    def monthly_forecast(
+        self,
+        origin_location_id: UUID,
+        destination_location_id: UUID,
+        vessel_class: str,
+        months: int = 12,
+    ) -> list[dict]:
+        """Generate month-end horizons from verified route/class observations only."""
+        observations = self.market_repository.list(
+            metric="freight_rate",
+            origin_location_id=origin_location_id,
+            destination_location_id=destination_location_id,
+            vessel_class=vessel_class,
+            limit=500,
+        )
+        verified = [
+            row for row in observations
+            if str(row.get("provenance", "")).upper()
+            in {"REAL", "PUBLIC_PROXY", "USER_PROVIDED", "DERIVED"}
+            and str(row.get("origin_location_id", "")) == str(origin_location_id)
+            and str(row.get("destination_location_id", "")) == str(destination_location_id)
+            and str(row.get("vessel_class", "")).strip().casefold() == vessel_class.strip().casefold()
+        ]
+        if not verified:
+            raise ValueError(
+                "No verified observations match this route and vessel class; "
+                "monthly forecasts cannot be generated from simulated or unmatched data."
+            )
+
+        from datetime import datetime, timezone
+        from calendar import monthrange
+
+        parsed = []
+        for row in verified:
+            try:
+                observed_at = datetime.fromisoformat(
+                    str(row["observed_at"]).replace("Z", "+00:00")
+                )
+                parsed.append((observed_at, row))
+            except (KeyError, TypeError, ValueError):
+                continue
+        if not parsed:
+            raise ValueError("Matched observations do not contain valid observation dates.")
+        latest = max(item[0] for item in parsed)
+        results = []
+        year, month = latest.year, latest.month
+        for offset in range(1, months + 1):
+            month_index = year * 12 + (month - 1) + offset
+            target_year, month_zero = divmod(month_index, 12)
+            target_month = month_zero + 1
+            target_day = monthrange(target_year, target_month)[1]
+            target = datetime(target_year, target_month, target_day, tzinfo=timezone.utc)
+            horizon_days = max(1, (target - latest).days)
+            forecast = self.engine.forecast(verified, horizon_days=horizon_days)
+            results.append({
+                "month": target.strftime("%Y-%m"),
+                "target_date": target.date().isoformat(),
+                "horizon_days": horizon_days,
+                "p10": forecast["p10"],
+                "p50": forecast["p50"],
+                "p90": forecast["p90"],
+                "unit": verified[-1].get("unit", "USD/MT"),
+                "currency": verified[-1].get("currency", "USD"),
+                "model_name": forecast["model_name"],
+                "model_version": forecast["model_version"],
+                "input_provenance": "VERIFIED_MATCHED_OBSERVATIONS",
+                "observation_count": forecast["metadata"]["observation_count"],
+            })
+        return results
+
     def list(
         self,
         origin_location_id: UUID | None = None,
