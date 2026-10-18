@@ -31,6 +31,26 @@ const AUDIT_KEY = "charterpulse.frontend.audit.v1";
 function readAudit(): AuditEvent[] { try { return JSON.parse(localStorage.getItem(AUDIT_KEY) || "[]") as AuditEvent[]; } catch { return []; } }
 function writeAudit(event: AuditEvent) { try { localStorage.setItem(AUDIT_KEY, JSON.stringify([event, ...readAudit()].slice(0, 50))); } catch { /* optional browser storage */ } }
 
+function selectRouteForecast(
+  forecasts: FreightForecastData[],
+  originLocationId?: string | null,
+  destinationLocationId?: string | null,
+): FreightForecastData | null {
+  if (!originLocationId || !destinationLocationId) return null;
+
+  return forecasts
+    .filter(
+      (forecast) =>
+        forecast.origin_location_id === originLocationId &&
+        forecast.destination_location_id === destinationLocationId,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.generated_at).getTime() -
+        new Date(a.generated_at).getTime(),
+    )[0] ?? null;
+}
+
 function CommandCenter({ procurement, decision, onDecision, human, onHuman, navigate }: { procurement: ProcurementContext | null; decision: DecisionResponse | null; onDecision: (d: DecisionResponse) => void; human: HumanDecisionResponse | null; onHuman: (d: HumanDecisionResponse) => void; navigate: (id: string) => void }) {
   const [waitDays, setWaitDays] = useState(7); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   async function run() {
@@ -42,10 +62,22 @@ function CommandCenter({ procurement, decision, onDecision, human, onHuman, navi
         procurement.cargo.origin_location_id ?? undefined,
         procurement.cargo.destination_location_id ?? undefined,
       );
-      if (!forecasts.length) {
-        throw new Error("No freight forecast exists for the selected origin and destination.");
+      const selectedForecast = selectRouteForecast(
+        forecasts,
+        procurement.cargo.origin_location_id,
+        procurement.cargo.destination_location_id,
+      );
+      if (!selectedForecast) {
+        throw new Error(
+          "No route-matched freight forecast exists for the selected origin and destination. A generic forecast will not be used.",
+        );
       }
-      const d = await evaluateDecision(procurement.cargo.quantity_mt, waitDays, procurement.cargo.id, forecasts[0].id);
+      const d = await evaluateDecision(
+        procurement.cargo.quantity_mt,
+        waitDays,
+        procurement.cargo.id,
+        selectedForecast.id,
+      );
       onDecision(d);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Decision engine unavailable.");
@@ -85,7 +117,15 @@ export default function App() {
       procurement.cargo.origin_location_id ?? undefined,
       procurement.cargo.destination_location_id ?? undefined,
     )
-      .then(f => setForecast(f[0] || null))
+      .then((forecasts) =>
+        setForecast(
+          selectRouteForecast(
+            forecasts,
+            procurement.cargo.origin_location_id,
+            procurement.cargo.destination_location_id,
+          ),
+        ),
+      )
       .catch(() => setForecast(null));
   }, [procurement, decision]);
   function recordAudit(event: AuditEvent) { writeAudit(event); setAudit(readAudit()); }
@@ -97,10 +137,22 @@ export default function App() {
         p.cargo.origin_location_id ?? undefined,
         p.cargo.destination_location_id ?? undefined,
       );
-      if (!forecasts.length) {
-        throw new Error("No freight forecast exists for the selected origin and destination.");
+      const selectedForecast = selectRouteForecast(
+        forecasts,
+        p.cargo.origin_location_id,
+        p.cargo.destination_location_id,
+      );
+      if (!selectedForecast) {
+        throw new Error(
+          "No route-matched freight forecast exists for the selected origin and destination. A generic forecast will not be used.",
+        );
       }
-      const d = await evaluateDecision(p.cargo.quantity_mt, 7, p.cargo.id, forecasts[0].id);
+      const d = await evaluateDecision(
+        p.cargo.quantity_mt,
+        7,
+        p.cargo.id,
+        selectedForecast.id,
+      );
       setDecision(d);
       recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: p.cargo.id });
     } catch {
