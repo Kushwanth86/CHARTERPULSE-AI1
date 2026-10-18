@@ -139,7 +139,6 @@ class ForecastService:
     ) -> list[dict]:
         """Generate month-end horizons from verified route/class observations only."""
         observations = self.market_repository.list(
-            metric="freight_rate",
             origin_location_id=origin_location_id,
             destination_location_id=destination_location_id,
             vessel_class=vessel_class,
@@ -147,7 +146,8 @@ class ForecastService:
         )
         verified = [
             row for row in observations
-            if str(row.get("provenance", "")).upper()
+            if str(row.get("metric", "")).strip().upper() in {"FREIGHT_RATE", "OCEAN_FREIGHT"}
+            and str(row.get("provenance", "")).upper()
             in {"REAL", "PUBLIC_PROXY", "USER_PROVIDED", "DERIVED"}
             and str(row.get("origin_location_id", "")) == str(origin_location_id)
             and str(row.get("destination_location_id", "")) == str(destination_location_id)
