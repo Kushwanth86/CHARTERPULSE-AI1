@@ -141,7 +141,7 @@ class ForecastService:
         observations = self.market_repository.list(
             origin_location_id=origin_location_id,
             destination_location_id=destination_location_id,
-            vessel_class=vessel_class,
+            vessel_class=vessel_class.strip().upper(),
             limit=500,
         )
         verified = [
