@@ -142,6 +142,23 @@ export async function listVessels(): Promise<Vessel[]> { return unwrapList(await
 export async function listMarketObservations(): Promise<MarketObservation[]> {
   try { const primary = unwrapList(await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500")); return primary.length ? [...primary, ...REFERENCE_MARKET_OBSERVATIONS] : REFERENCE_MARKET_OBSERVATIONS; } catch { return REFERENCE_MARKET_OBSERVATIONS; }
 }
+export interface MonthlyFreightForecast {
+  month: string; target_date: string; horizon_days: number; p10: number; p50: number; p90: number;
+  unit: string; currency: string; model_name: string; model_version: string;
+  input_provenance: string; observation_count: number;
+}
+export async function listMonthlyFreightForecasts(
+  originLocationId: string, destinationLocationId: string, vesselClass: string, months = 12,
+): Promise<MonthlyFreightForecast[]> {
+  const params = new URLSearchParams({
+    origin_location_id: originLocationId,
+    destination_location_id: destinationLocationId,
+    vessel_class: vesselClass,
+    months: String(months),
+  });
+  return request<MonthlyFreightForecast[]>(`/api/v1/forecasts/freight/monthly?${params.toString()}`);
+}
+
 export async function listFreightForecasts(
   originLocationId?: string,
   destinationLocationId?: string,
