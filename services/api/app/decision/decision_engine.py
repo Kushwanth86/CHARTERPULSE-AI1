@@ -71,6 +71,23 @@ def evaluate_decision(
 ) -> DecisionResponse:
     forecast = _get_forecast(payload.forecast_id)
 
+    # The top-level provenance describes the forecast record, not the evidence
+    # used to generate it. Never let demo/reference inputs drive procurement.
+    metadata = forecast.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    input_provenance = str(
+        metadata.get("input_provenance")
+        or forecast.get("input_provenance")
+        or forecast.get("provenance")
+        or "UNKNOWN"
+    ).strip().upper()
+    if input_provenance in {"SIMULATED", "SIMULATED_REFERENCE", "SYNTHETIC"}:
+        raise ValueError(
+            "Procurement decisions require verified market observations; "
+            f"forecast input provenance is {input_provenance}."
+        )
+
     p10_value = forecast.get("p10")
     p50_value = forecast.get("p50")
     p90_value = forecast.get("p90")
@@ -107,7 +124,7 @@ def evaluate_decision(
         difference / payload.cargo_quantity_mt
     )
 
-    provenance = forecast.get("provenance") or "FORECAST"
+    provenance = input_provenance
 
     rationale = [
         (
