@@ -21,7 +21,9 @@ type FreightEstimate = {
 const CONTAINERS = [
   { value: "container20", label: "20-foot container" },
   { value: "container40", label: "40-foot container" },
-  { value: "container40hc", label: "40-foot high cube" },
+  { value: "container40HC", label: "40-foot high cube" },
+  { value: "container45", label: "45-foot container" },
+  { value: "container45HC", label: "45-foot high cube" },
 ];
 
 function money(value: number, currency: string) {
@@ -104,7 +106,7 @@ export default function ContainerFreight() {
           </div>
           <div className="form-grid two">
             <div className="field"><label htmlFor="cp-container-type">CONTAINER TYPE</label><select id="cp-container-type" value={loadtype} onChange={e => setLoadtype(e.target.value)}>{CONTAINERS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
-            <div className="field"><label htmlFor="cp-quantity">NUMBER OF CONTAINERS</label><input id="cp-quantity" type="number" min={1} max={100} step={1} value={quantity} onChange={e => setQuantity(Number(e.target.value))} required/></div>
+            <div className="field"><label htmlFor="cp-quantity">NUMBER OF CONTAINERS</label><input id="cp-quantity" type="number" min={1} max={20} step={1} value={quantity} onChange={e => setQuantity(Number(e.target.value))} required/></div>
           </div>
           {error && <div className="error-banner">{error}</div>}
           <div className="button-row cp-submit-row"><button className="primary-button" type="submit" disabled={busy || !origin.trim() || !destination.trim() || quantity < 1}>{busy ? "REQUESTING ESTIMATE…" : "GET CONTAINER ESTIMATE"}</button></div>
