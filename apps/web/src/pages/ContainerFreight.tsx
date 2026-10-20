@@ -18,6 +18,48 @@ type FreightEstimate = {
   source_url: string;
 };
 
+const PORTS = [
+  { value: "CNSHA", label: "Shanghai, China" },
+  { value: "CNNGB", label: "Ningbo, China" },
+  { value: "CNSZX", label: "Shenzhen, China" },
+  { value: "CNTAO", label: "Qingdao, China" },
+  { value: "CNYTN", label: "Yantian, China" },
+  { value: "HKHKG", label: "Hong Kong" },
+  { value: "SGSIN", label: "Singapore" },
+  { value: "KRPUS", label: "Busan, South Korea" },
+  { value: "JPTYO", label: "Tokyo, Japan" },
+  { value: "JPOSA", label: "Osaka, Japan" },
+  { value: "TWKHH", label: "Kaohsiung, Taiwan" },
+  { value: "INNSA", label: "Nhava Sheva (Mumbai), India" },
+  { value: "INMUN", label: "Mundra, India" },
+  { value: "LKCMB", label: "Colombo, Sri Lanka" },
+  { value: "AEJEA", label: "Jebel Ali, UAE" },
+  { value: "NLRTM", label: "Rotterdam, Netherlands" },
+  { value: "DEHAM", label: "Hamburg, Germany" },
+  { value: "BEANR", label: "Antwerp, Belgium" },
+  { value: "GBFXT", label: "Felixstowe, United Kingdom" },
+  { value: "FRLEH", label: "Le Havre, France" },
+  { value: "ESVLC", label: "Valencia, Spain" },
+  { value: "ITGOA", label: "Genoa, Italy" },
+  { value: "USLGB", label: "Long Beach, USA" },
+  { value: "USLAX", label: "Los Angeles, USA" },
+  { value: "USNYC", label: "New York, USA" },
+  { value: "USORF", label: "Norfolk, USA" },
+  { value: "USHOU", label: "Houston, USA" },
+  { value: "CAMTR", label: "Montreal, Canada" },
+  { value: "CAVAN", label: "Vancouver, Canada" },
+  { value: "BRSSZ", label: "Santos, Brazil" },
+  { value: "AUMEL", label: "Melbourne, Australia" },
+  { value: "NZAKL", label: "Auckland, New Zealand" },
+  { value: "ZADUR", label: "Durban, South Africa" },
+  { value: "MYPKG", label: "Port Klang, Malaysia" },
+  { value: "THLCH", label: "Laem Chabang, Thailand" },
+  { value: "VNSGN", label: "Ho Chi Minh City, Vietnam" },
+  { value: "IDJKT", label: "Jakarta, Indonesia" },
+  { value: "PHMNL", label: "Manila, Philippines" },
+  { value: "SAJED", label: "Jeddah, Saudi Arabia" },
+] as const;
+
 const CONTAINERS = [
   { value: "container20", label: "20-foot container" },
   { value: "container40", label: "40-foot container" },
@@ -101,8 +143,8 @@ export default function ContainerFreight() {
         <div className="section-head"><div><span className="eyebrow">SHIPMENT PARAMETERS</span><h2>Configure your route</h2></div><span className="field-note">UN/LOCODE format</span></div>
         <form onSubmit={getEstimate}>
           <div className="form-grid two">
-            <div className="field"><label htmlFor="cp-origin">ORIGIN PORT CODE</label><input id="cp-origin" value={origin} onChange={e => setOrigin(e.target.value.toUpperCase())} maxLength={5} minLength={5} pattern="[A-Za-z]{5}" placeholder="CNSHA" required/><small>Example: CNSHA — Shanghai</small></div>
-            <div className="field"><label htmlFor="cp-destination">DESTINATION PORT CODE</label><input id="cp-destination" value={destination} onChange={e => setDestination(e.target.value.toUpperCase())} maxLength={5} minLength={5} pattern="[A-Za-z]{5}" placeholder="USLGB" required/><small>Example: USLGB — Long Beach</small></div>
+            <div className="field"><label htmlFor="cp-origin">ORIGIN PORT CODE</label><select id="cp-origin" value={origin} onChange={e => setOrigin(e.target.value)} required><option value="" disabled>Select origin port</option>{PORTS.map(port => <option key={port.value} value={port.value}>{port.value} — {port.label}</option>)}</select><small>{PORTS.length} available ports · choose origin</small></div>
+            <div className="field"><label htmlFor="cp-destination">DESTINATION PORT CODE</label><select id="cp-destination" value={destination} onChange={e => setDestination(e.target.value)} required><option value="" disabled>Select destination port</option>{PORTS.map(port => <option key={port.value} value={port.value}>{port.value} — {port.label}</option>)}</select><small>{PORTS.length} available ports · choose destination</small></div>
           </div>
           <div className="form-grid two">
             <div className="field"><label htmlFor="cp-container-type">CONTAINER TYPE</label><select id="cp-container-type" value={loadtype} onChange={e => setLoadtype(e.target.value)}>{CONTAINERS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
