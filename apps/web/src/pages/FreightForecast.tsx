@@ -79,7 +79,9 @@ export default function FreightForecast() {
         const message = err instanceof Error ? err.message : "Monthly forecast unavailable.";
         setError(message.includes("422")
           ? "No verified market observations match this port pair and vessel class. Simulated reference data is intentionally not shown as a real forecast."
-          : message);
+          : message.includes("404")
+            ? "The monthly forecast API is not available on the connected backend yet. The route-specific endpoint must be deployed before forecasts can load."
+            : message);
       })
       .finally(() => { if (active) setLoadingForecast(false); });
     return () => { active = false; };
