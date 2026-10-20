@@ -4,11 +4,11 @@ export type NavItem = { id: string; label: string; icon: ReactNode };
 export type NavGroup = { title: string; items: NavItem[] };
 
 const icons: Record<string, ReactNode> = {
-  dashboard: <span>⌂</span>, procurement: <span>＋</span>, market: <span>◒</span>, forecast: <span>⌁</span>, port: <span>⚓</span>, vessel: <span>◈</span>, cost: <span>Σ</span>, risk: <span>◇</span>, ai: <span>✦</span>, history: <span>↺</span>, outcomes: <span>✓</span>, model: <span>◌</span>
+  dashboard: <span>⌂</span>, container: <span>▤</span>, procurement: <span>＋</span>, market: <span>◒</span>, forecast: <span>⌁</span>, port: <span>⚓</span>, vessel: <span>◈</span>, cost: <span>Σ</span>, risk: <span>◇</span>, ai: <span>✦</span>, history: <span>↺</span>, outcomes: <span>✓</span>, model: <span>◌</span>
 };
 
 export const navGroups: NavGroup[] = [
-  { title: "OPERATIONS", items: ["Command Center", "New Procurement", "Market Intelligence", "Freight Forecast", "Port Intelligence", "Vessel Intelligence"].map((label, i) => ({ id: label, label, icon: Object.values(icons)[i] })) },
+  { title: "OPERATIONS", items: ["Command Center", "New Procurement", "Market Intelligence", "Freight Forecast", "Container Freight", "Port Intelligence", "Vessel Intelligence"].map((label) => ({ id: label, label, icon: label === "Container Freight" ? icons.container : ({ "Command Center": icons.dashboard, "New Procurement": icons.procurement, "Market Intelligence": icons.market, "Freight Forecast": icons.forecast, "Port Intelligence": icons.port, "Vessel Intelligence": icons.vessel } as Record<string, ReactNode>)[label] })) },
   { title: "DECISION", items: ["Cost & Chartering", "What-If & Risk", "AI Recommendation"].map((label, i) => ({ id: label, label, icon: Object.values(icons)[6 + i] })) },
   { title: "GOVERNANCE", items: ["Decision History", "Actual Outcomes", "Model Performance"].map((label, i) => ({ id: label, label, icon: Object.values(icons)[9 + i] })) }
 ];
