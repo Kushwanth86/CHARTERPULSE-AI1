@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter
 
 from services.api.app.api.routes import (
@@ -6,6 +7,8 @@ from services.api.app.api.routes import (
     costs,
     decision,
     feasibility,
+    forecasts,
+    freightos,
     human_decision,
     market,
     model_evaluation,
@@ -15,7 +18,6 @@ from services.api.app.api.routes import (
     vessel_cargo_compatibility,
     vessels,
 )
-from services.api.app.api.routes import forecasts
 
 
 router = APIRouter()
@@ -23,6 +25,7 @@ router = APIRouter()
 router.include_router(cargo.router)
 router.include_router(market.router)
 router.include_router(forecasts.router)
+router.include_router(freightos.router)
 router.include_router(vessels.router)
 router.include_router(feasibility.router)
 router.include_router(port_constraints.router)
