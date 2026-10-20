@@ -138,20 +138,28 @@ class ForecastService:
         months: int = 12,
     ) -> list[dict]:
         """Generate month-end horizons from verified route/class observations only."""
+        if months < 1:
+            raise ValueError("months must be at least 1.")
+
+        normalized_vessel_class = vessel_class.strip().upper()
         observations = self.market_repository.list(
             origin_location_id=origin_location_id,
             destination_location_id=destination_location_id,
-            vessel_class=vessel_class.strip().upper(),
+            vessel_class=normalized_vessel_class,
             limit=500,
         )
         verified = [
             row for row in observations
-            if str(row.get("metric", "")).strip().upper() in {"FREIGHT_RATE", "OCEAN_FREIGHT"}
-            and str(row.get("provenance", "")).upper()
+            if str(row.get("metric", "")).strip().upper()
+            in {"FREIGHT_RATE", "OCEAN_FREIGHT"}
+            and str(row.get("provenance", "")).strip().upper()
             in {"REAL", "PUBLIC_PROXY", "USER_PROVIDED", "DERIVED"}
-            and str(row.get("origin_location_id", "")) == str(origin_location_id)
-            and str(row.get("destination_location_id", "")) == str(destination_location_id)
-            and str(row.get("vessel_class", "")).strip().casefold() == vessel_class.strip().casefold()
+            and str(row.get("origin_location_id", "")).strip()
+            == str(origin_location_id)
+            and str(row.get("destination_location_id", "")).strip()
+            == str(destination_location_id)
+            and str(row.get("vessel_class", "")).strip().casefold()
+            == normalized_vessel_class.casefold()
         ]
         if not verified:
             raise ValueError(
@@ -159,31 +167,44 @@ class ForecastService:
                 "monthly forecasts cannot be generated from simulated or unmatched data."
             )
 
-        from datetime import datetime, timezone
         from calendar import monthrange
+        from datetime import datetime, timezone
 
-        parsed = []
+        dated_observations = []
         for row in verified:
             try:
                 observed_at = datetime.fromisoformat(
                     str(row["observed_at"]).replace("Z", "+00:00")
                 )
-                parsed.append((observed_at, row))
+                if observed_at.tzinfo is None:
+                    observed_at = observed_at.replace(tzinfo=timezone.utc)
+                dated_observations.append((observed_at, row))
             except (KeyError, TypeError, ValueError):
                 continue
-        if not parsed:
-            raise ValueError("Matched observations do not contain valid observation dates.")
-        latest = max(item[0] for item in parsed)
+
+        if not dated_observations:
+            raise ValueError(
+                "Matched observations do not contain valid observation dates."
+            )
+
+        dated_observations.sort(key=lambda item: item[0])
+        verified = [row for _, row in dated_observations]
+        latest = dated_observations[-1][0]
         results = []
         year, month = latest.year, latest.month
+
         for offset in range(1, months + 1):
             month_index = year * 12 + (month - 1) + offset
             target_year, month_zero = divmod(month_index, 12)
             target_month = month_zero + 1
             target_day = monthrange(target_year, target_month)[1]
-            target = datetime(target_year, target_month, target_day, tzinfo=timezone.utc)
+            target = datetime(
+                target_year, target_month, target_day, tzinfo=timezone.utc
+            )
             horizon_days = max(1, (target - latest).days)
-            forecast = self.engine.forecast(verified, horizon_days=horizon_days)
+            forecast = self.engine.forecast(
+                verified, horizon_days=horizon_days
+            )
             results.append({
                 "month": target.strftime("%Y-%m"),
                 "target_date": target.date().isoformat(),
