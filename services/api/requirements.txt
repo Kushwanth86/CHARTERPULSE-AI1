@@ -7,3 +7,6 @@ python-dotenv>=1.0,<2
 numpy>=1.26,<3
 pandas>=2.2,<3
 scikit-learn>=1.5,<2
+certifi>=2026.10.19
+multidict>=6.9.1
+PyJWT>=2.15.1
