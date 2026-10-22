@@ -1,9 +1,11 @@
 import json
+from urllib.error import HTTPError
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from services.api.app.services.freightos_service import (
+    FreightosRateLimitError,
     FreightosService,
     FreightosServiceError,
 )
@@ -22,45 +24,30 @@ def mock_response(payload):
     return response
 
 
-def test_estimate_returns_container_price_range(service):
-    payload = {
+def valid_payload():
+    return {
         "response": {
             "estimatedFreightRates": {
                 "numQuotes": 1,
                 "mode": {
                     "price": {
-                        "min": {
-                            "moneyAmount": {
-                                "amount": "3262",
-                                "currency": "USD",
-                            }
-                        },
-                        "max": {
-                            "moneyAmount": {
-                                "amount": "3554",
-                                "currency": "USD",
-                            }
-                        },
+                        "min": {"moneyAmount": {"amount": "3262", "currency": "USD"}},
+                        "max": {"moneyAmount": {"amount": "3554", "currency": "USD"}},
                     },
-                    "transitTimes": {
-                        "min": "17",
-                        "max": "21",
-                        "unit": "days",
-                    },
+                    "transitTimes": {"min": "17", "max": "21", "unit": "days"},
                     "mode": "FCL",
                 },
             }
         }
     }
 
+
+def test_estimate_returns_container_price_range(service):
     with patch(
         "services.api.app.services.freightos_service.urlopen",
-        return_value=mock_response(payload),
+        return_value=mock_response(valid_payload()),
     ):
-        result = service.estimate(
-            origin="CNSHA",
-            destination="USLGB",
-        )
+        result = service.estimate(origin="CNSHA", destination="USLGB")
 
     assert result["provider"] == "Freightos"
     assert result["estimate_type"] == "CONTAINER_FREIGHT_ESTIMATE"
@@ -72,27 +59,60 @@ def test_estimate_returns_container_price_range(service):
 
 
 def test_estimate_reports_no_quotes_without_a_price(service):
-    payload = {
-        "response": {
-            "estimatedFreightRates": {
-                "numQuotes": 0,
-            }
-        }
-    }
-
+    payload = {"response": {"estimatedFreightRates": {"numQuotes": 0}}}
     with patch(
         "services.api.app.services.freightos_service.urlopen",
         return_value=mock_response(payload),
     ):
-        with pytest.raises(
-            FreightosServiceError,
-            match="No freight quotes are available",
-        ):
+        with pytest.raises(FreightosServiceError, match="No freight quotes are available"):
             service.estimate(
                 origin="CNSZX",
                 destination="KRPUS",
                 loadtype="container45",
             )
+
+
+def test_estimate_surfaces_retry_after_when_rate_limited(service):
+    error = HTTPError(
+        "https://ship.freightos.com/api/shippingCalculator",
+        429,
+        "Too Many Requests",
+        {"Retry-After": "45"},
+        None,
+    )
+    with patch(
+        "services.api.app.services.freightos_service.urlopen",
+        side_effect=error,
+    ):
+        with pytest.raises(FreightosRateLimitError) as exc_info:
+            service.estimate(
+                origin="CNHKG",
+                destination="AUSYD",
+                loadtype="container20",
+            )
+
+    assert exc_info.value.retry_after == 45
+    assert "rate-limiting" in str(exc_info.value)
+
+
+def test_estimate_caches_successful_results_for_identical_requests(service):
+    with patch(
+        "services.api.app.services.freightos_service.urlopen",
+        return_value=mock_response(valid_payload()),
+    ) as mocked_urlopen:
+        first = service.estimate(
+            origin="BRSSZ",
+            destination="GBFXT",
+            loadtype="container40HC",
+        )
+        second = service.estimate(
+            origin="BRSSZ",
+            destination="GBFXT",
+            loadtype="container40HC",
+        )
+
+    assert first == second
+    mocked_urlopen.assert_called_once()
 
 
 def test_estimate_rejects_unsupported_container_type(service):
@@ -114,14 +134,9 @@ def test_estimate_rejects_invalid_quantity(service):
 
 
 def test_estimate_handles_missing_freight_rates(service):
-    payload = {"response": {}}
-
     with patch(
         "services.api.app.services.freightos_service.urlopen",
-        return_value=mock_response(payload),
+        return_value=mock_response({"response": {}}),
     ):
         with pytest.raises(FreightosServiceError):
-            service.estimate(
-                origin="CNSHA",
-                destination="USLGB",
-            )
+            service.estimate(origin="CNSHA", destination="USLGB")
