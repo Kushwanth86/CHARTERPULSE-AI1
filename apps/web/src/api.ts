@@ -171,6 +171,11 @@ export async function listFreightForecasts(
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
 export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID, forecastId: string = TEST_FORECAST_ID): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }
+export async function listHumanDecisions(limit = 100): Promise<HumanDecisionResponse[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return unwrapList(await request<ListEnvelope<HumanDecisionResponse>>(`/api/v1/decisions/human?${params.toString()}`));
+}
+
 export async function recordHumanDecision(
   decisionRunId: string,
   action: "APPROVE" | "MODIFY" | "REJECT",
