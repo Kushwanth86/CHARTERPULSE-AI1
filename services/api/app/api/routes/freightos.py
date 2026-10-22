@@ -1,9 +1,10 @@
-
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from services.api.app.services.freightos_service import (
+    FreightosRateLimitError,
     FreightosService,
     FreightosServiceError,
 )
@@ -40,12 +41,12 @@ def get_container_estimate(
             weight=weight,
         )
     except ValueError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FreightosRateLimitError as exc:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": str(exc)},
+            headers={"Retry-After": str(exc.retry_after)},
+        )
     except FreightosServiceError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
