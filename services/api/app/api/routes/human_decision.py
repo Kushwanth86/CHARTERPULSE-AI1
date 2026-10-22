@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from services.api.app.schemas.human_decision import (
     HumanDecisionCreate,
@@ -13,6 +13,16 @@ router = APIRouter(
     prefix="/api/v1/decisions",
     tags=["Human Decisions"],
 )
+
+
+@router.get(
+    "/human",
+    response_model=list[HumanDecisionResponse],
+)
+def list_human_decisions(
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[HumanDecisionResponse]:
+    return human_decision_service.list_decisions(limit=limit)
 
 
 @router.post(
