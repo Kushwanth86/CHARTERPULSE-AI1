@@ -1,4 +1,3 @@
-
 import json
 from unittest.mock import MagicMock, patch
 
@@ -27,6 +26,7 @@ def test_estimate_returns_container_price_range(service):
     payload = {
         "response": {
             "estimatedFreightRates": {
+                "numQuotes": 1,
                 "mode": {
                     "price": {
                         "min": {
@@ -48,7 +48,7 @@ def test_estimate_returns_container_price_range(service):
                         "unit": "days",
                     },
                     "mode": "FCL",
-                }
+                },
             }
         }
     }
@@ -69,6 +69,30 @@ def test_estimate_returns_container_price_range(service):
     assert result["currency"] == "USD"
     assert result["transit_days_min"] == "17"
     assert result["transit_days_max"] == "21"
+
+
+def test_estimate_reports_no_quotes_without_a_price(service):
+    payload = {
+        "response": {
+            "estimatedFreightRates": {
+                "numQuotes": 0,
+            }
+        }
+    }
+
+    with patch(
+        "services.api.app.services.freightos_service.urlopen",
+        return_value=mock_response(payload),
+    ):
+        with pytest.raises(
+            FreightosServiceError,
+            match="No freight quotes are available",
+        ):
+            service.estimate(
+                origin="CNSZX",
+                destination="KRPUS",
+                loadtype="container45",
+            )
 
 
 def test_estimate_rejects_unsupported_container_type(service):
