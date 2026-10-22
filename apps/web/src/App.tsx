@@ -55,60 +55,38 @@ function selectRouteForecast(
 }
 
 function CommandCenter({ procurement, decision, onDecision, human, onHuman, navigate }: { procurement: ProcurementContext | null; decision: DecisionResponse | null; onDecision: (d: DecisionResponse) => void; human: HumanDecisionResponse | null; onHuman: (d: HumanDecisionResponse) => void; navigate: (id: string) => void }) {
-  const [waitDays, setWaitDays] = useState(7); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [waitDays, setWaitDays] = useState(7);
+  const [busy, setBusy] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<"APPROVE" | "MODIFY" | "REJECT" | null>(null);
+  const [error, setError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+
   async function run() {
-    if (!procurement) return;
-    setBusy(true);
-    setError("");
+    if (!procurement || busy || submittingAction) return;
+    setBusy(true); setError(""); setActionMessage("");
     try {
-      const forecasts = await listFreightForecasts(
-        procurement.cargo.origin_location_id ?? undefined,
-        procurement.cargo.destination_location_id ?? undefined,
-        procurement.vesselClass ?? undefined,
-      );
-      const selectedForecast = selectRouteForecast(
-        forecasts,
-        procurement.cargo.origin_location_id,
-        procurement.cargo.destination_location_id,
-        procurement.vesselClass,
-      );
-      if (!selectedForecast) {
-        throw new Error(
-          "No freight forecast matches the selected route and vessel class. A mismatched forecast will not be used.",
-        );
-      }
-      const d = await evaluateDecision(
-        procurement.cargo.quantity_mt,
-        waitDays,
-        procurement.cargo.id,
-        selectedForecast.id,
-      );
-      onDecision(d);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Decision engine unavailable.");
-    } finally {
-      setBusy(false);
-    }
+      const forecasts = await listFreightForecasts(procurement.cargo.origin_location_id ?? undefined, procurement.cargo.destination_location_id ?? undefined, procurement.vesselClass ?? undefined);
+      const selectedForecast = selectRouteForecast(forecasts, procurement.cargo.origin_location_id, procurement.cargo.destination_location_id, procurement.vesselClass);
+      if (!selectedForecast) throw new Error("No freight forecast matches the selected route and vessel class. A mismatched forecast will not be used.");
+      onDecision(await evaluateDecision(procurement.cargo.quantity_mt, waitDays, procurement.cargo.id, selectedForecast.id));
+    } catch (e) { setError(e instanceof Error ? e.message : "Decision engine unavailable."); }
+    finally { setBusy(false); }
   }
+
   async function act(action: "APPROVE" | "MODIFY" | "REJECT") {
-    if (!decision?.decision_run_id) return;
+    if (!decision?.decision_run_id || busy || submittingAction) return;
+    setSubmittingAction(action); setError(""); setActionMessage("");
     try {
-      const modifiedParameters =
-        action === "MODIFY" ? { wait_days: waitDays } : {};
-      onHuman(
-        await recordHumanDecision(
-          decision.decision_run_id,
-          action,
-          `${action} from CharterPulse Command Center.`,
-          modifiedParameters,
-        ),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to record human decision.");
-    }
+      const modifiedParameters = action === "MODIFY" ? { wait_days: waitDays } : {};
+      const saved = await recordHumanDecision(decision.decision_run_id, action, `${action} from CharterPulse Command Center.`, modifiedParameters);
+      onHuman(saved);
+      setActionMessage(`Decision ${saved.action.toLowerCase()} was saved successfully.`);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to record human decision. The save was not confirmed."); }
+    finally { setSubmittingAction(null); }
   }
+
   if (!procurement) return <div className="page-stack"><div className="page-heading"><div><span className="eyebrow">COMMAND CENTER</span><h1>Decision Room</h1><p>Create a procurement requirement first. The decision room never fills missing data with invented values.</p></div></div><section className="hero-command"><div><span className="eyebrow">FROM CARGO REQUIREMENT → BEST TRANSPORTATION DECISION</span><h2>Start the procurement intelligence workflow.</h2><p>Material → country → port → delivery window → forecast → vessel → cost → risk → human approval.</p></div><button className="primary-button" onClick={() => navigate("New Procurement")}>NEW PROCUREMENT</button></section></div>;
-  return <div className="page-stack"><div className="page-heading"><div><span className="eyebrow">COMMAND CENTER / DECISION ROOM</span><h1>{procurement.cargo.material} procurement</h1><p>{procurement.cargo.quantity_mt.toLocaleString()} MT · {procurement.originPort.name} → {procurement.destinationPort.name}</p></div><span className={`data-badge ${decision?.provenance === "SIMULATED" ? "simulated" : decision ? "proxy" : "unknown"}`}>{decision?.provenance || "READY"}</span></div><div className="metric-grid four"><div className="metric-card"><span>DELIVERY WINDOW</span><strong>{formatDateOnly(procurement.cargo.earliest_delivery)}</strong><small>to {formatDateOnly(procurement.cargo.latest_delivery)}</small></div><div className="metric-card"><span>FREIGHT P50</span><strong>{decision ? `$${decision.forecast_p50.toFixed(2)}` : "—"}</strong><small>USD/MT</small></div><div className="metric-card"><span>RISK SCORE</span><strong>{decision ? decision.risk_score.toFixed(1) : "—"}</strong><small>0–100</small></div><div className="metric-card"><span>RECOMMENDATION</span><strong>{decision ? decision.recommendation.replace(/_/g, " ") : "READY"}</strong><small>{human ? `Human: ${human.action}` : "Human approval required"}</small></div></div><section className="enterprise-card"><div className="section-head"><div><span className="eyebrow">OPTIMIZATION CONTROL</span><h2>Now vs wait</h2></div><button className="primary-button compact-button" onClick={run} disabled={busy}>{busy ? "RUNNING…" : "RUN DECISION"}</button></div><div className="control-row"><label>WAIT HORIZON <strong>{waitDays} days</strong><input type="range" min="1" max="30" value={waitDays} onChange={e => setWaitDays(Number(e.target.value))}/></label></div>{decision && <div className="decision-grid"><div><span>NOW P50 COST</span><strong>${decision.now_expected_freight_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>WAIT CONSERVATIVE</span><strong>${decision.wait_conservative_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>WAIT DIFFERENCE</span><strong>${decision.wait_cost_difference.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>PROBABILITY NOW &gt; BASELINE</span><strong>{(decision.probability_now_exceeds_baseline * 100).toFixed(1)}%</strong></div></div>}{error && <div className="error-banner">{error}</div>}</section>{decision && <section className="enterprise-card"><div className="section-head"><div><span className="eyebrow">HUMAN GOVERNANCE</span><h2>Approve, modify or reject</h2></div><span className="field-note">No autonomous contracting</span></div><div className="button-row"><button className="primary-button" onClick={() => act("APPROVE")}>APPROVE</button><button className="secondary-button" onClick={() => act("MODIFY")}>MODIFY</button><button className="danger-button" onClick={() => act("REJECT")}>REJECT</button></div></section>}</div>;
+  return <div className="page-stack"><div className="page-heading"><div><span className="eyebrow">COMMAND CENTER / DECISION ROOM</span><h1>{procurement.cargo.material} procurement</h1><p>{procurement.cargo.quantity_mt.toLocaleString()} MT · {procurement.originPort.name} → {procurement.destinationPort.name}</p></div><span className={`data-badge ${decision?.provenance === "SIMULATED" ? "simulated" : decision ? "proxy" : "unknown"}`}>{decision?.provenance || "READY"}</span></div><div className="metric-grid four"><div className="metric-card"><span>DELIVERY WINDOW</span><strong>{formatDateOnly(procurement.cargo.earliest_delivery)}</strong><small>to {formatDateOnly(procurement.cargo.latest_delivery)}</small></div><div className="metric-card"><span>FREIGHT P50</span><strong>{decision ? `$${decision.forecast_p50.toFixed(2)}` : "—"}</strong><small>USD/MT</small></div><div className="metric-card"><span>RISK SCORE</span><strong>{decision ? decision.risk_score.toFixed(1) : "—"}</strong><small>0–100</small></div><div className="metric-card"><span>RECOMMENDATION</span><strong>{decision ? decision.recommendation.replace(/_/g, " ") : "READY"}</strong><small>{human ? `Human: ${human.action}` : "Human approval required"}</small></div></div><section className="enterprise-card"><div className="section-head"><div><span className="eyebrow">OPTIMIZATION CONTROL</span><h2>Now vs wait</h2></div><button className="primary-button compact-button" onClick={run} disabled={busy || Boolean(submittingAction)}>{busy ? "RUNNING…" : "RUN DECISION"}</button></div><div className="control-row"><label>WAIT HORIZON <strong>{waitDays} days</strong><input type="range" min="1" max="30" value={waitDays} disabled={busy || Boolean(submittingAction)} onChange={e => setWaitDays(Number(e.target.value))}/></label></div>{decision && <div className="decision-grid"><div><span>NOW P50 COST</span><strong>${decision.now_expected_freight_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>WAIT CONSERVATIVE</span><strong>${decision.wait_conservative_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>WAIT DIFFERENCE</span><strong>${decision.wait_cost_difference.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div><div><span>PROBABILITY NOW &gt; BASELINE</span><strong>{(decision.probability_now_exceeds_baseline * 100).toFixed(1)}%</strong></div></div>}{error && <div className="error-banner" role="alert">{error}</div>}{actionMessage && <div className="success-banner" role="status">{actionMessage}</div>}</section>{decision && <section className="enterprise-card"><div className="section-head"><div><span className="eyebrow">HUMAN GOVERNANCE</span><h2>Approve, modify or reject</h2></div><span className="field-note">No autonomous contracting</span></div>{human && <p className="field-note">Latest saved action: {human.action} · {new Date(human.decided_at).toLocaleString("en-GB")}</p>}<div className="button-row"><button className="primary-button" onClick={() => act("APPROVE")} disabled={busy || Boolean(submittingAction) || !decision.decision_run_id}>{submittingAction === "APPROVE" ? "SAVING APPROVAL…" : "APPROVE"}</button><button className="secondary-button" onClick={() => act("MODIFY")} disabled={busy || Boolean(submittingAction) || !decision.decision_run_id}>{submittingAction === "MODIFY" ? "SAVING CHANGES…" : "MODIFY"}</button><button className="danger-button" onClick={() => act("REJECT")} disabled={busy || Boolean(submittingAction) || !decision.decision_run_id}>{submittingAction === "REJECT" ? "SAVING REJECTION…" : "REJECT"}</button></div></section>}</div>;
 }
 
 export default function App() {
