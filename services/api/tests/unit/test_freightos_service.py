@@ -5,10 +5,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from services.api.app.services.freightos_service import (
+    _CACHE_LOCK,
+    _ESTIMATE_CACHE,
     FreightosRateLimitError,
     FreightosService,
     FreightosServiceError,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_estimate_cache():
+    # Tests must not share process-local cache entries with one another.
+    with _CACHE_LOCK:
+        _ESTIMATE_CACHE.clear()
 
 
 @pytest.fixture
