@@ -54,3 +54,18 @@ def test_freightos_estimate_endpoint_validates_quantity():
     )
 
     assert response.status_code == 422
+
+
+def test_vercel_preview_origin_passes_cors_preflight():
+    origin = "https://charterpulse-ai-1-87ay28j0-kushwanth86s-projects.vercel.app"
+    response = client.options(
+        "/api/v1/locations",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
