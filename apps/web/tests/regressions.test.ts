@@ -72,11 +72,11 @@ test("human decision history reads persisted records from the API", () => {
     "utf8",
   );
   const routeSource = readFileSync(
-    new URL("../../services/api/app/api/routes/human_decision.py", import.meta.url),
+    new URL("../../../services/api/app/api/routes/human_decision.py", import.meta.url),
     "utf8",
   );
   const serviceSource = readFileSync(
-    new URL("../../services/api/app/services/human_decision_service.py", import.meta.url),
+    new URL("../../../services/api/app/services/human_decision_service.py", import.meta.url),
     "utf8",
   );
 
