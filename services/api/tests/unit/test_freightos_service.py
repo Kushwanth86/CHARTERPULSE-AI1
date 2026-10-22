@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from services.api.app.services import freightos_service as freightos_module
 from services.api.app.services.freightos_service import (
     _CACHE_LOCK,
     _ESTIMATE_CACHE,
@@ -15,9 +16,10 @@ from services.api.app.services.freightos_service import (
 
 @pytest.fixture(autouse=True)
 def clear_estimate_cache():
-    # Tests must not share process-local cache entries with one another.
+    # Isolate process-local cache and cooldown state between tests.
     with _CACHE_LOCK:
         _ESTIMATE_CACHE.clear()
+        freightos_module._RATE_LIMIT_UNTIL = 0.0
 
 
 @pytest.fixture
@@ -81,7 +83,7 @@ def test_estimate_reports_no_quotes_without_a_price(service):
             )
 
 
-def test_estimate_surfaces_retry_after_when_rate_limited(service):
+def test_estimate_surfaces_retry_after_and_pauses_other_routes(service):
     error = HTTPError(
         "https://ship.freightos.com/api/shippingCalculator",
         429,
@@ -92,16 +94,23 @@ def test_estimate_surfaces_retry_after_when_rate_limited(service):
     with patch(
         "services.api.app.services.freightos_service.urlopen",
         side_effect=error,
-    ):
+    ) as mocked_urlopen:
         with pytest.raises(FreightosRateLimitError) as exc_info:
             service.estimate(
                 origin="CNHKG",
                 destination="AUSYD",
                 loadtype="container20",
             )
+        with pytest.raises(FreightosRateLimitError):
+            service.estimate(
+                origin="CNSHA",
+                destination="USLGB",
+                loadtype="container40",
+            )
 
     assert exc_info.value.retry_after == 45
     assert "rate-limiting" in str(exc_info.value)
+    mocked_urlopen.assert_called_once()
 
 
 def test_estimate_caches_successful_results_for_identical_requests(service):
