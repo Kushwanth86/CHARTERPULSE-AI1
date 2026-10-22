@@ -1,13 +1,13 @@
-
 import json
+import logging
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-FREIGHTOS_URL = (
-    "https://ship.freightos.com/api/shippingCalculator"
-)
+logger = logging.getLogger(__name__)
+
+FREIGHTOS_URL = "https://ship.freightos.com/api/shippingCalculator"
 
 SUPPORTED_LOAD_TYPES = {
     "container20",
@@ -60,23 +60,48 @@ class FreightosService:
 
         try:
             with urlopen(request, timeout=15) as response:
-                payload = json.loads(
-                    response.read().decode("utf-8")
-                )
-        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            # Log only the status and category; never log the request URL or headers.
+            logger.warning(
+                "Freightos upstream HTTP error: status=%s",
+                exc.code,
+            )
+            raise FreightosServiceError(
+                "Freightos is temporarily unavailable."
+            ) from exc
+        except URLError as exc:
+            reason = exc.reason
+            logger.warning(
+                "Freightos upstream connection error: reason_type=%s",
+                type(reason).__name__,
+            )
+            raise FreightosServiceError(
+                "Freightos is temporarily unavailable."
+            ) from exc
+        except (TimeoutError, OSError) as exc:
+            logger.warning(
+                "Freightos upstream network error: error_type=%s",
+                type(exc).__name__,
+            )
             raise FreightosServiceError(
                 "Freightos is temporarily unavailable."
             ) from exc
         except (ValueError, UnicodeDecodeError) as exc:
+            logger.warning(
+                "Freightos returned invalid JSON: error_type=%s",
+                type(exc).__name__,
+            )
             raise FreightosServiceError(
                 "Freightos returned invalid JSON."
             ) from exc
 
+        if not isinstance(payload, dict):
+            raise FreightosServiceError("Unexpected response from Freightos.")
+
         body = payload.get("response", {})
         if not isinstance(body, dict):
-            raise FreightosServiceError(
-                "Unexpected response from Freightos."
-            )
+            raise FreightosServiceError("Unexpected response from Freightos.")
 
         if body.get("errors"):
             raise FreightosServiceError(
@@ -89,11 +114,22 @@ class FreightosService:
                 "No freight estimate is available for this route."
             )
 
+        # Freightos can return a valid response with zero quotes and no mode.
+        if estimates.get("numQuotes") == 0:
+            raise FreightosServiceError(
+                "No freight quotes are available for this route and container type."
+            )
+
         mode = estimates.get("mode")
         if isinstance(mode, list):
             mode = mode[0] if mode else None
 
         if not isinstance(mode, dict):
+            logger.warning(
+                "Freightos response did not contain a usable quote: "
+                "num_quotes=%s",
+                estimates.get("numQuotes", "unknown"),
+            )
             raise FreightosServiceError(
                 "No usable freight estimate was returned."
             )
@@ -111,6 +147,10 @@ class FreightosService:
             if max_price < min_price:
                 raise ValueError("Invalid price range.")
         except (KeyError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Freightos returned an invalid price range: error_type=%s",
+                type(exc).__name__,
+            )
             raise FreightosServiceError(
                 "Freightos returned an invalid price range."
             ) from exc
