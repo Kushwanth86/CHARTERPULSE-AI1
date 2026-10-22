@@ -42,6 +42,28 @@ test("freight forecast surfaces a persistent API failure instead of masking it a
   }
 });
 
+test("GET requests do not add JSON content type or trigger avoidable preflights", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestHeaders: HeadersInit | undefined;
+
+  globalThis.fetch = (async (_input, init) => {
+    requestHeaders = init?.headers;
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const { request } = await import("../src/api.ts");
+    await request<{ ok: boolean }>("/health");
+    const headers = new Headers(requestHeaders);
+    assert.equal(headers.has("Content-Type"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("request does not retry non-idempotent POST operations", async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
