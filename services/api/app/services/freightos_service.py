@@ -1,5 +1,7 @@
 import json
 import logging
+import threading
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -8,6 +10,9 @@ from urllib.request import Request, urlopen
 logger = logging.getLogger(__name__)
 
 FREIGHTOS_URL = "https://ship.freightos.com/api/shippingCalculator"
+CACHE_TTL_SECONDS = 60
+_CACHE_LOCK = threading.Lock()
+_ESTIMATE_CACHE: dict[tuple, tuple[float, dict]] = {}
 
 SUPPORTED_LOAD_TYPES = {
     "container20",
@@ -20,6 +25,16 @@ SUPPORTED_LOAD_TYPES = {
 
 class FreightosServiceError(Exception):
     """Raised when Freightos cannot provide a usable estimate."""
+
+
+class FreightosRateLimitError(FreightosServiceError):
+    """Raised when Freightos asks the caller to slow down."""
+
+    def __init__(self, retry_after: int = 60):
+        self.retry_after = max(1, min(int(retry_after), 3600))
+        super().__init__(
+            f"Freightos is rate-limiting requests. Try again in {self.retry_after} seconds."
+        )
 
 
 class FreightosService:
@@ -40,10 +55,21 @@ class FreightosService:
         if quantity < 1 or quantity > 20:
             raise ValueError("Quantity must be between 1 and 20.")
 
+        origin = origin.strip().upper()
+        destination = destination.strip().upper()
+        cache_key = (origin, destination, loadtype, quantity, weight)
+        now = time.monotonic()
+        with _CACHE_LOCK:
+            cached = _ESTIMATE_CACHE.get(cache_key)
+            if cached and cached[0] > now:
+                return dict(cached[1])
+            if cached:
+                _ESTIMATE_CACHE.pop(cache_key, None)
+
         params = {
             "format": "json",
-            "origin": origin.strip(),
-            "destination": destination.strip(),
+            "origin": origin,
+            "destination": destination,
             "loadtype": loadtype,
             "quantity": quantity,
         }
@@ -63,10 +89,15 @@ class FreightosService:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             # Log only the status and category; never log the request URL or headers.
-            logger.warning(
-                "Freightos upstream HTTP error: status=%s",
-                exc.code,
-            )
+            if exc.code == 429:
+                raw_retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                try:
+                    retry_after = int(raw_retry_after) if raw_retry_after else 60
+                except (TypeError, ValueError):
+                    retry_after = 60
+                logger.warning("Freightos rate limited the request: status=429")
+                raise FreightosRateLimitError(retry_after) from exc
+            logger.warning("Freightos upstream HTTP error: status=%s", exc.code)
             raise FreightosServiceError(
                 "Freightos is temporarily unavailable."
             ) from exc
@@ -114,7 +145,6 @@ class FreightosService:
                 "No freight estimate is available for this route."
             )
 
-        # Freightos can return a valid response with zero quotes and no mode.
         if estimates.get("numQuotes") == 0:
             raise FreightosServiceError(
                 "No freight quotes are available for this route and container type."
@@ -126,13 +156,10 @@ class FreightosService:
 
         if not isinstance(mode, dict):
             logger.warning(
-                "Freightos response did not contain a usable quote: "
-                "num_quotes=%s",
+                "Freightos response did not contain a usable quote: num_quotes=%s",
                 estimates.get("numQuotes", "unknown"),
             )
-            raise FreightosServiceError(
-                "No usable freight estimate was returned."
-            )
+            raise FreightosServiceError("No usable freight estimate was returned.")
 
         price = mode.get("price", {})
         minimum = price.get("min", {}).get("moneyAmount", {})
@@ -143,7 +170,6 @@ class FreightosService:
             min_price = float(minimum["amount"])
             max_price = float(maximum["amount"])
             currency = minimum["currency"]
-
             if max_price < min_price:
                 raise ValueError("Invalid price range.")
         except (KeyError, TypeError, ValueError) as exc:
@@ -155,11 +181,11 @@ class FreightosService:
                 "Freightos returned an invalid price range."
             ) from exc
 
-        return {
+        result = {
             "provider": "Freightos",
             "estimate_type": "CONTAINER_FREIGHT_ESTIMATE",
-            "origin": origin.strip(),
-            "destination": destination.strip(),
+            "origin": origin,
+            "destination": destination,
             "loadtype": loadtype,
             "quantity": quantity,
             "price_min": min_price,
@@ -171,3 +197,6 @@ class FreightosService:
             "is_estimate": True,
             "source_url": "https://ship.freightos.com",
         }
+        with _CACHE_LOCK:
+            _ESTIMATE_CACHE[cache_key] = (time.monotonic() + CACHE_TTL_SECONDS, result)
+        return dict(result)
