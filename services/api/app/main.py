@@ -33,6 +33,7 @@ app.add_middleware(
         "https://charterpulse-ai-1.vercel.app",
         "https://charterpulse-ai-1-7aw6stgid-kushwanth86s-projects.vercel.app",
     ],
+    allow_origin_regex=r"https://charterpulse-ai-1-[a-z0-9-]+-kushwanth86s-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
