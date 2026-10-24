@@ -30,7 +30,7 @@ function sleep(ms: number): Promise<void> {
 export function formatApiError(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
 
-  const match = /^API \\d+:\\s*(.*)$/s.exec(error.message);
+  const match = /^API \d+:\s*(.*)$/s.exec(error.message);
   if (!match) return error.message || fallback;
 
   let detail = match[1].trim();
