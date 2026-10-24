@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from services.api.app.repositories.supabase_client import (
@@ -32,7 +33,6 @@ class ForecastRepository:
         vessel_class: str | None = None,
         limit: int = 100,
     ) -> list[dict]:
-
         client = get_supabase_client()
 
         query = (
@@ -41,6 +41,7 @@ class ForecastRepository:
             .select("*")
         )
 
+        # Route matching remains exact.
         if origin_location_id:
             query = query.eq(
                 "origin_location_id",
@@ -53,10 +54,11 @@ class ForecastRepository:
                 str(destination_location_id),
             )
 
+        # Match vessel class without case sensitivity.
         if vessel_class:
-            query = query.eq(
+            query = query.ilike(
                 "vessel_class",
-                vessel_class,
+                vessel_class.strip(),
             )
 
         response = (
