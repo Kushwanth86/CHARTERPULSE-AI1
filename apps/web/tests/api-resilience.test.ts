@@ -75,5 +75,5 @@ test("formatApiError explains missing Freightos quotes without exposing raw API 
   assert.match(message, /No freight quotes are available/);
   assert.match(message, /Try another port pair or container type/);
   assert.match(message, /No rate has been assumed/);
-  assert.doesNotMatch(message, /API 404|\\"detail\\"/);
+assert.doesNotMatch(message, /API 404|detail/);
 });
