@@ -62,3 +62,18 @@ test("request does not retry non-idempotent POST operations", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+
+
+test("formatApiError explains missing Freightos quotes without exposing raw API JSON", async () => {
+  const { formatApiError } = await import("../src/api.ts");
+  const message = formatApiError(
+    new Error('API 404: {"detail":"No freight quotes are available for this route and container type."}'),
+    "Fallback",
+  );
+
+  assert.match(message, /No freight quotes are available/);
+  assert.match(message, /Try another port pair or container type/);
+  assert.match(message, /No rate has been assumed/);
+  assert.doesNotMatch(message, /API 404|\\"detail\\"/);
+});
