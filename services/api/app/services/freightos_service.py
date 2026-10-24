@@ -33,6 +33,10 @@ class FreightosServiceError(Exception):
     """Raised when Freightos cannot provide a usable estimate."""
 
 
+class FreightosNoQuoteError(FreightosServiceError):
+    """Raised when the provider responds successfully but has no quote."""
+
+
 class FreightosRateLimitError(FreightosServiceError):
     """Raised when Freightos asks the caller to slow down."""
 
@@ -171,7 +175,7 @@ class FreightosService:
         if not isinstance(estimates, dict):
             raise FreightosServiceError("No freight estimate is available for this route.")
         if estimates.get("numQuotes") == 0:
-            raise FreightosServiceError(
+            raise FreightosNoQuoteError(
                 "No freight quotes are available for this route and container type."
             )
 
