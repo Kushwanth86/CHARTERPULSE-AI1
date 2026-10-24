@@ -58,7 +58,10 @@ class MarketRepository:
             )
 
         if vessel_class:
-            query = query.eq(
+            # Vessel-class labels are user-facing names (e.g. "Panamax"),
+            # while source records may store enum-like values ("PANAMAX").
+            # Keep route filters exact and normalize only this label.
+            query = query.ilike(
                 "vessel_class",
                 vessel_class,
             )
