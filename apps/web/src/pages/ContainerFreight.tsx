@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { request } from "../api";
+import { formatApiError, request } from "../api";
 
 type FreightEstimate = {
   provider: string;
@@ -123,7 +123,7 @@ export default function ContainerFreight() {
     try {
       setEstimate(await request<FreightEstimate>(`/api/v1/freightos/estimate?${params.toString()}`));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to retrieve a Freightos estimate. Please try again.");
+      setError(formatApiError(e, "Unable to retrieve a Freightos estimate. Please try again."));
     } finally {
       setBusy(false);
     }
