@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
 import { evaluateDecision, listFreightForecasts, recordHumanDecision, type DecisionResponse, type FreightForecast as FreightForecastData, type HumanDecisionResponse } from "./api";
 import type { ProcurementContext } from "./pages/NewProcurement";
@@ -90,7 +90,11 @@ function CommandCenter({ procurement, decision, onDecision, human, onHuman, navi
 }
 
 export default function App() {
-  const [active, setActive] = useState("Command Center"); const [procurement, setProcurement] = useState<ProcurementContext | null>(null); const [decision, setDecision] = useState<DecisionResponse | null>(null); const [human, setHuman] = useState<HumanDecisionResponse | null>(null); const [forecast, setForecast] = useState<FreightForecastData | null>(null); const [audit, setAudit] = useState<AuditEvent[]>(() => readAudit());
+  const [active, setActive] = useState("Command Center");
+  // Keep the navigation interaction responsive while React renders the selected page.
+  function navigateTo(id: string) {
+    startTransition(() => setActive(id));
+  } const [procurement, setProcurement] = useState<ProcurementContext | null>(null); const [decision, setDecision] = useState<DecisionResponse | null>(null); const [human, setHuman] = useState<HumanDecisionResponse | null>(null); const [forecast, setForecast] = useState<FreightForecastData | null>(null); const [audit, setAudit] = useState<AuditEvent[]>(() => readAudit());
   useEffect(() => {
     if (!procurement) {
       setForecast(null);
@@ -116,7 +120,7 @@ export default function App() {
   function recordAudit(event: AuditEvent) { writeAudit(event); setAudit(readAudit()); }
   async function created(p: ProcurementContext) {
     setProcurement(p);
-    setActive("Command Center");
+    navigateTo("Command Center");
     try {
       const forecasts = await listFreightForecasts(
         p.cargo.origin_location_id ?? undefined,
@@ -146,6 +150,6 @@ export default function App() {
       setDecision(null);
     }
   }
-  function content() { switch (active) { case "New Procurement": return <NewProcurement onCreated={created}/>; case "Market Intelligence": return <MarketIntelligence/>; case "Freight Forecast": return <FreightForecast/>; case "Container Freight": return <ContainerFreight/>; case "Port Intelligence": return <PortIntelligence/>; case "Vessel Intelligence": return <VesselDirectory/>; case "Cost & Chartering": return <CostCharting/>; case "What-If & Risk": return <WhatIfRisk decision={decision}/>; case "AI Recommendation": return <AIRecommendation procurement={procurement} decision={decision} onDecision={d => { setDecision(d); recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: procurement?.cargo.id }); }}/>; case "Decision History": return <DecisionHistory procurement={procurement} decision={decision} human={human} history={audit}/>; case "Actual Outcomes": return <ActualOutcomes procurement={procurement} decision={decision}/>; case "Model Performance": return <ModelPerformance forecast={forecast}/>; default: return <CommandCenter procurement={procurement} decision={decision} onDecision={d => { setDecision(d); recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: procurement?.cargo.id }); }} human={human} onHuman={d => { setHuman(d); recordAudit({ time: d.decided_at, type: `HUMAN_${d.action}`, ref: d.id, detail: d.reason || "Human decision recorded.", procurementId: procurement?.cargo.id }); }} navigate={setActive}/>; } }
+  function content() { switch (active) { case "New Procurement": return <NewProcurement onCreated={created}/>; case "Market Intelligence": return <MarketIntelligence/>; case "Freight Forecast": return <FreightForecast/>; case "Container Freight": return <ContainerFreight/>; case "Port Intelligence": return <PortIntelligence/>; case "Vessel Intelligence": return <VesselDirectory/>; case "Cost & Chartering": return <CostCharting/>; case "What-If & Risk": return <WhatIfRisk decision={decision}/>; case "AI Recommendation": return <AIRecommendation procurement={procurement} decision={decision} onDecision={d => { setDecision(d); recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: procurement?.cargo.id }); }}/>; case "Decision History": return <DecisionHistory procurement={procurement} decision={decision} human={human} history={audit}/>; case "Actual Outcomes": return <ActualOutcomes procurement={procurement} decision={decision}/>; case "Model Performance": return <ModelPerformance forecast={forecast}/>; default: return <CommandCenter procurement={procurement} decision={decision} onDecision={d => { setDecision(d); recordAudit({ time: d.generated_at, type: "DECISION_RUN", ref: d.decision_run_id || "—", detail: `${d.recommendation} · risk ${d.risk_score.toFixed(1)} · ${d.provenance}`, procurementId: procurement?.cargo.id }); }} human={human} onHuman={d => { setHuman(d); recordAudit({ time: d.decided_at, type: `HUMAN_${d.action}`, ref: d.id, detail: d.reason || "Human decision recorded.", procurementId: procurement?.cargo.id }); }} navigate={navigateTo}/>; } }
   return <div className="enterprise-app"><Sidebar active={active} onNavigate={setActive}/><main className="enterprise-main"><div className="top-status"><span><i className="status-dot"/> CONNECTED</span><span>SAIL · CHARTERPULSE AI</span></div>{content()}</main></div>;
 }
