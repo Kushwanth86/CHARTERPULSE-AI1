@@ -67,7 +67,7 @@ function CommandCenter({ procurement, decision, onDecision, human, onHuman, navi
     try {
       const forecasts = await listFreightForecasts(procurement.cargo.origin_location_id ?? undefined, procurement.cargo.destination_location_id ?? undefined, procurement.vesselClass ?? undefined);
       const selectedForecast = selectRouteForecast(forecasts, procurement.cargo.origin_location_id, procurement.cargo.destination_location_id, procurement.vesselClass);
-      if (!selectedForecast) throw new Error("No freight forecast matches the selected route and vessel class. A mismatched forecast will not be used.");
+      if (!selectedForecast) throw new Error("No verified freight forecast is available for this route and vessel class. Matching verified market observations are required; generic and simulated forecasts are not substituted.");
       onDecision(await evaluateDecision(procurement.cargo.quantity_mt, waitDays, procurement.cargo.id, selectedForecast.id));
     } catch (e) { setError(e instanceof Error ? e.message : "Decision engine unavailable."); }
     finally { setBusy(false); }
@@ -131,7 +131,7 @@ export default function App() {
       );
       if (!selectedForecast) {
         throw new Error(
-          "No route-matched freight forecast exists for the selected origin and destination. A generic forecast will not be used.",
+          "No verified freight forecast is available for this route and vessel class. Matching verified market observations are required; generic and simulated forecasts are not substituted.",
         );
       }
       const d = await evaluateDecision(

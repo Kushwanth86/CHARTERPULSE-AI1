@@ -1,8 +1,9 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-const API_BASE = "https://charterpulse-ai1.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
 export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
+
 
 export interface DecisionResponse { decision_run_id: string | null; decision_status: string; recommendation: string; cargo_quantity_mt: number; currency: string; forecast_p10: number; forecast_p50: number; forecast_p90: number; now_expected_freight_cost: number; now_p90_freight_cost: number; wait_conservative_rate: number; wait_conservative_cost: number; wait_cost_difference: number; wait_cost_difference_per_mt: number; probability_now_exceeds_baseline: number; risk_score: number; provenance: string; model_name: string | null; forecast_id: string; rationale: string[]; warnings: string[]; generated_at: string; }
 export interface HumanDecisionResponse { id: string; decision_run_id: string; action: string; modified_parameters: Record<string, unknown>; reason: string | null; decided_at: string; actor_reference: string | null; provenance: string; }

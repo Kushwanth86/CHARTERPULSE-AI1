@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+﻿
 from uuid import UUID
 
 from services.api.app.repositories.supabase_client import (
@@ -33,7 +33,6 @@ class MarketRepository:
         vessel_class: str | None = None,
         limit: int = 500,
     ) -> list[dict]:
-
         client = get_supabase_admin_client()
 
         query = (
@@ -45,6 +44,7 @@ class MarketRepository:
         if metric:
             query = query.eq("metric", metric)
 
+        # Keep route identifiers exact.
         if origin_location_id:
             query = query.eq(
                 "origin_location_id",
@@ -57,10 +57,11 @@ class MarketRepository:
                 str(destination_location_id),
             )
 
+        # Match vessel class case-insensitively.
         if vessel_class:
-            query = query.eq(
+            query = query.ilike(
                 "vessel_class",
-                vessel_class,
+                vessel_class.strip(),
             )
 
         response = (
