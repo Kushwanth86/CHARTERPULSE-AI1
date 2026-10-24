@@ -27,6 +27,30 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export function formatApiError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+
+  const match = /^API \\d+:\\s*(.*)$/s.exec(error.message);
+  if (!match) return error.message || fallback;
+
+  let detail = match[1].trim();
+  try {
+    const payload: unknown = JSON.parse(detail);
+    if (payload && typeof payload === "object" && "detail" in payload) {
+      const message = (payload as { detail?: unknown }).detail;
+      if (typeof message === "string") detail = message;
+    }
+  } catch {
+    // Keep the original response text when it is not JSON.
+  }
+
+  if (/no freight quotes are available|no freight estimate is available for this route/i.test(detail)) {
+    return `${detail} Try another port pair or container type, or use the Freightos calculator to check availability. No rate has been assumed.`;
+  }
+
+  return detail || error.message || fallback;
+}
+
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const method = (options?.method ?? "GET").toUpperCase();
   const retryableMethod = method === "GET" || method === "HEAD" || method === "OPTIONS";
