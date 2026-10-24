@@ -54,7 +54,10 @@ class ForecastRepository:
             )
 
         if vessel_class:
-            query = query.eq(
+            # Vessel-class labels arrive from UI forms as title case but
+            # historical rows may use upper case. Match case-insensitively
+            # without relaxing the origin/destination filters.
+            query = query.ilike(
                 "vessel_class",
                 vessel_class,
             )
