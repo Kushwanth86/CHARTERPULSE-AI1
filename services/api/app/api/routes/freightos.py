@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from services.api.app.services.freightos_service import (
+    FreightosNoQuoteError,
     FreightosRateLimitError,
     FreightosService,
     FreightosServiceError,
@@ -42,6 +43,8 @@ def get_container_estimate(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FreightosNoQuoteError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FreightosRateLimitError as exc:
         return JSONResponse(
             status_code=429,
