@@ -245,18 +245,18 @@ export default function NewProcurement({
   const [destinationPorts, setDestinationPorts] =
     useState<Port[]>([]);
 
-  const [originCountry, setOriginCountry] = useState("AU");
+  const [originCountry, setOriginCountry] = useState("");
   const [destinationCountry, setDestinationCountry] =
-    useState("IN");
+    useState("");
 
   const [originPort, setOriginPort] = useState("");
   const [destinationPort, setDestinationPort] =
     useState("");
 
-  const [material, setMaterial] = useState("Coking Coal");
-  const [cargoType, setCargoType] = useState("DRY_BULK");
-  const [quantity, setQuantity] = useState("70000");
-  const [priority, setPriority] = useState("HIGH");
+  const [material, setMaterial] = useState("");
+  const [cargoType, setCargoType] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [priority, setPriority] = useState("NORMAL");
 
   const initialWindow = useMemo(
     () => defaultDeliveryWindow(),
@@ -405,21 +405,25 @@ export default function NewProcurement({
 
   const originOptions = useMemo(
     () =>
-      originPorts.map((port) => ({
-        id: port.id,
-        label: port.name,
-        meta: port.unlocode || "UN/LOCODE unavailable",
-      })),
+      originPorts
+        .filter((port) => isUuid(port.location_id))
+        .map((port) => ({
+          id: port.id,
+          label: port.name,
+          meta: port.unlocode || "UN/LOCODE unavailable",
+        })),
     [originPorts],
   );
 
   const destinationOptions = useMemo(
     () =>
-      destinationPorts.map((port) => ({
-        id: port.id,
-        label: port.name,
-        meta: port.unlocode || "UN/LOCODE unavailable",
-      })),
+      destinationPorts
+        .filter((port) => isUuid(port.location_id))
+        .map((port) => ({
+          id: port.id,
+          label: port.name,
+          meta: port.unlocode || "UN/LOCODE unavailable",
+        })),
     [destinationPorts],
   );
 
@@ -475,11 +479,10 @@ export default function NewProcurement({
     if (
       !quantity.trim() ||
       !Number.isFinite(parsedQuantity) ||
-      parsedQuantity <= 0 ||
-      !Number.isInteger(parsedQuantity)
+      parsedQuantity <= 0
     ) {
       setError(
-        "Quantity must be a positive whole number of metric tonnes.",
+        "Quantity must be a positive number of metric tonnes.",
       );
       return;
     }
@@ -581,14 +584,26 @@ export default function NewProcurement({
         </div>
 
         <div className="form-grid three">
-          <SearchDropdown
-            label="MATERIAL"
-            value={material}
-            options={materialOptions}
-            placeholder="Select bulk commodity"
-            helper="Coking coal, iron ore, thermal coal and other bulk materials."
-            onChange={setMaterial}
-          />
+          <div className="field">
+            <label htmlFor="procurement-material">MATERIAL</label>
+            <input
+              id="procurement-material"
+              type="text"
+              list="procurement-material-options"
+              value={material}
+              onChange={(event) => setMaterial(event.target.value)}
+              placeholder="Enter a commodity or choose a suggestion"
+              autoComplete="off"
+            />
+            <datalist id="procurement-material-options">
+              {materialOptions.map((option) => (
+                <option key={option.id} value={option.id} />
+              ))}
+            </datalist>
+            <small>
+              Enter any commodity. Suggestions include reference examples and prior procurements.
+            </small>
+          </div>
 
           <SearchDropdown
             label="CARGO TYPE"
@@ -605,7 +620,7 @@ export default function NewProcurement({
               <input
                 type="number"
                 min="1"
-                step="1"
+                step="any"
                 value={quantity}
                 onChange={(event) =>
                   setQuantity(event.target.value)
@@ -640,8 +655,12 @@ export default function NewProcurement({
                 ? "Search ports in selected country"
                 : "Select origin country first"
             }
-            helper={`${originOptions.length.toLocaleString()} reference/API ports available.`}
-            disabled={!originCountry}
+            helper={
+              originOptions.length
+                ? `${originOptions.length.toLocaleString()} valid ports available.`
+                : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
+            }
+            disabled={!originCountry || originOptions.length === 0}
             onChange={setOriginPort}
           />
         </div>
@@ -664,8 +683,12 @@ export default function NewProcurement({
                 ? "Search ports in selected country"
                 : "Select destination country first"
             }
-            helper={`${destinationOptions.length.toLocaleString()} reference/API ports available.`}
-            disabled={!destinationCountry}
+            helper={
+              destinationOptions.length
+                ? `${destinationOptions.length.toLocaleString()} valid ports available.`
+                : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
+            }
+            disabled={!destinationCountry || destinationOptions.length === 0}
             onChange={setDestinationPort}
           />
         </div>
@@ -726,7 +749,8 @@ export default function NewProcurement({
           <div className="field">
             <label>PRIORITY</label>
             <select
-              onChange={(e) => setQuantity(e.target.value)}
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
             >
               <option value="LOW">Low</option>
               <option value="NORMAL">Normal</option>
