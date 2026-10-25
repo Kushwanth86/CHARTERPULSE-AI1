@@ -572,3 +572,48 @@ test("location fallback recovers after a transient network failure", async () =>
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("quantity validation rejects non-decimal Number coercion formats", () => {
+  for (const quantity of ["0x10", "0b10", "0o10", "Infinity", "NaN", "1e309", "1_000"]) {
+    assert.notEqual(
+      validate({ quantity }),
+      null,
+      "quantity " + JSON.stringify(quantity) + " should be rejected",
+    );
+  }
+});
+
+test("quantity validation accepts decimal and scientific notation boundaries", () => {
+  for (const quantity of ["0.0000001", ".125", "1.", "1e3", "1E+3", " 12.5 "]) {
+    assert.equal(
+      validate({ quantity }),
+      null,
+      "quantity " + JSON.stringify(quantity) + " should be accepted",
+    );
+  }
+  for (const quantity of ["0", "-0.1", "1e-9999"]) {
+    assert.notEqual(validate({ quantity }), null);
+  }
+});
+
+test("date validation rejects unsupported year zero and malformed date shapes", () => {
+  for (const date of ["0000-01-01", "26-10-25", "2026/10/25", "2026-1-5", "2026-02-29"]) {
+    assert.notEqual(
+      validate({ fromDate: date }),
+      null,
+      "date " + JSON.stringify(date) + " should be rejected",
+    );
+  }
+});
+
+test("deterministic mutation sweep preserves quantity validation invariants", () => {
+  const validQuantities = ["0.0001", "0.1", "1", "25", "70000", "1000000000.75", "2.5e4"];
+  const invalidQuantities = ["", " ", "0", "-1", "-0.0001", "abc", "0x20", "Infinity", "1e999"];
+  for (const quantity of validQuantities) {
+    assert.equal(validate({ quantity }), null, "expected valid quantity " + quantity);
+  }
+  for (const quantity of invalidQuantities) {
+    assert.notEqual(validate({ quantity }), null, "expected invalid quantity " + quantity);
+  }
+});

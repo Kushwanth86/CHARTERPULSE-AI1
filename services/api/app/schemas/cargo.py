@@ -13,6 +13,14 @@ class CargoRequirementCreate(BaseModel):
     material: str = Field(min_length=1)
     quantity_mt: float = Field(gt=0, allow_inf_nan=False)
 
+    @field_validator("quantity_mt", mode="before")
+    @classmethod
+    def reject_boolean_quantity(cls, value):
+        # Python treats bool as an int subclass; never interpret JSON true/false as MT.
+        if isinstance(value, bool):
+            raise ValueError("quantity_mt must be a numeric quantity, not a boolean")
+        return value
+
     origin_location_id: UUID | None = None
     destination_location_id: UUID | None = None
 
