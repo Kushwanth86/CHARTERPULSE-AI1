@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class CargoRequirementCreate(BaseModel):
     cargo_type: str | None = None
+    vessel_class: str | None = None
     material: str = Field(min_length=1)
     quantity_mt: float = Field(gt=0)
 

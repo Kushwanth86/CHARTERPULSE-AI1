@@ -369,15 +369,16 @@ test("cargo API preserves varied quantities, custom materials, dates, and every 
 
   try {
     const cases = [
-      { quantity_mt: 0.125, material: "Zinc Concentrate", priority: "LOW" },
-      { quantity_mt: 70000, material: "Coking Coal", priority: "NORMAL" },
-      { quantity_mt: 123456789.75, material: "Iron Ore", priority: "HIGH" },
-      { quantity_mt: 1, material: "Limestone", priority: "CRITICAL" },
+      { quantity_mt: 0.125, material: "Zinc Concentrate", priority: "LOW", vessel_class: "Handysize" },
+      { quantity_mt: 70000, material: "Coking Coal", priority: "NORMAL", vessel_class: "Panamax" },
+      { quantity_mt: 123456789.75, material: "Iron Ore", priority: "HIGH", vessel_class: "Capesize" },
+      { quantity_mt: 1, material: "Limestone", priority: "CRITICAL", vessel_class: null },
     ];
 
     for (const item of cases) {
       await createCargo({
         cargo_type: "DRY_BULK",
+        vessel_class: item.vessel_class,
         material: item.material,
         quantity_mt: item.quantity_mt,
         origin_location_id: "00000000-0000-4000-8000-000000000001",
@@ -392,6 +393,7 @@ test("cargo API preserves varied quantities, custom materials, dates, and every 
     for (let i = 0; i < cases.length; i += 1) {
       assert.equal(bodies[i].quantity_mt, cases[i].quantity_mt);
       assert.equal(bodies[i].material, cases[i].material);
+      assert.equal(bodies[i].vessel_class, cases[i].vessel_class);
       assert.equal(bodies[i].priority, cases[i].priority);
       assert.equal(bodies[i].origin_location_id, "00000000-0000-4000-8000-000000000001");
       assert.equal(bodies[i].destination_location_id, "00000000-0000-4000-8000-000000000002");

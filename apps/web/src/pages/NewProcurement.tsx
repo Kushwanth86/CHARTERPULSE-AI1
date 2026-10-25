@@ -485,6 +485,7 @@ export default function NewProcurement({
     try {
       const cargo = await createCargo({
         cargo_type: normalizeCargoType(cargoType),
+        vessel_class: vesselClassFromCargoType(cargoType),
         material: material.trim(),
         quantity_mt: parsedQuantity,
         origin_location_id: op.location_id,
