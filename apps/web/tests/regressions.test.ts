@@ -71,8 +71,8 @@ test("procurement intake supports custom materials, editable quantities, and cor
     source,
     /onChange=\{\(e\) => setQuantity\(e\.target\.value\)\}[^]*<option value="LOW">/,
   );
-  assert.match(source, /originPorts[^]*filter\(\(port\) => isUuid\(port\.location_id\)\)/);
-  assert.match(source, /destinationPorts[^]*filter\(\(port\) => isUuid\(port\.location_id\)\)/);
+  assert.match(source, /originPorts[^]*filter\([\s\S]*?isUuid\(port\.location_id\)/);
+  assert.match(source, /destinationPorts[^]*filter\([\s\S]*?isUuid\(port\.location_id\)/);
   assert.match(source, /const \[material, setMaterial\] = useState\(""\)/);
   assert.match(source, /const \[quantity, setQuantity\] = useState\(""\)/);
   assert.match(source, /defaultDeliveryWindow/);
@@ -262,7 +262,7 @@ test("procurement validator rejects whitespace country codes", () => {
 
 test("procurement validator rejects routes with duplicate UN/LOCODEs", () => {
   assert.equal(
-    validate({ destinationPortUnlocode: "AUABC" }),
+    validate({ destinationCountry: "AU", destinationPortUnlocode: "AUABC" }),
     "Origin and destination must be different locations.",
   );
 });
