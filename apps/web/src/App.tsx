@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
 import { evaluateDecision, listFreightForecasts, recordHumanDecision, type DecisionResponse, type FreightForecast as FreightForecastData, type HumanDecisionResponse } from "./api";
 import type { ProcurementContext } from "./pages/NewProcurement";
+import { selectRouteForecast } from "./utils/forecastSelection";
 import NewProcurement from "./pages/NewProcurement";
 import MarketIntelligence from "./pages/MarketIntelligence";
 import FreightForecast from "./pages/FreightForecast";
@@ -31,28 +32,6 @@ type AuditEvent = { time: string; type: string; ref: string; detail: string; pro
 const AUDIT_KEY = "charterpulse.frontend.audit.v1";
 function readAudit(): AuditEvent[] { try { return JSON.parse(localStorage.getItem(AUDIT_KEY) || "[]") as AuditEvent[]; } catch { return []; } }
 function writeAudit(event: AuditEvent) { try { localStorage.setItem(AUDIT_KEY, JSON.stringify([event, ...readAudit()].slice(0, 50))); } catch { /* optional browser storage */ } }
-
-function selectRouteForecast(
-  forecasts: FreightForecastData[],
-  originLocationId?: string | null,
-  destinationLocationId?: string | null,
-  vesselClass?: string | null,
-): FreightForecastData | null {
-  if (!originLocationId || !destinationLocationId) return null;
-
-  return forecasts
-    .filter(
-      (forecast) =>
-        forecast.origin_location_id === originLocationId &&
-        forecast.destination_location_id === destinationLocationId &&
-        (!vesselClass || String(forecast.vessel_class ?? "").trim().toLowerCase() === vesselClass.trim().toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        new Date(b.generated_at).getTime() -
-        new Date(a.generated_at).getTime(),
-    )[0] ?? null;
-}
 
 function CommandCenter({ procurement, decision, onDecision, human, onHuman, navigate }: { procurement: ProcurementContext | null; decision: DecisionResponse | null; onDecision: (d: DecisionResponse) => void; human: HumanDecisionResponse | null; onHuman: (d: HumanDecisionResponse) => void; navigate: (id: string) => void }) {
   const [waitDays, setWaitDays] = useState(7);
