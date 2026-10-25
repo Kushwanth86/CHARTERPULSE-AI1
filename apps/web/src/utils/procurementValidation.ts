@@ -118,7 +118,7 @@ export function validateProcurementInput(
   }
   const quantityText = input.quantity.trim();
   // Match decimal/scientific numeric syntax; Number() alone also accepts hex, binary and octal.
-  if (!/^(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(quantityText)) {
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(quantityText)) {
     return "Quantity must be a positive finite number of metric tonnes.";
   }
   const quantity = Number(quantityText);
