@@ -7,6 +7,13 @@ export function isUuid(value: string | null | undefined): boolean {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
+export function vesselClassFromCargoType(value: string): string | null {
+  const match = value.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
+  return match
+    ? match[1].charAt(0) + match[1].slice(1).toLowerCase()
+    : null;
+}
+
 function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
 
@@ -40,11 +47,14 @@ export function validateProcurementInput(
 
   if (!material) return "Enter a material or commodity.";
   if (!input.cargoType.trim()) return "Select a cargo type.";
-  if (!input.originCountry || !input.destinationCountry) {
+  if (!input.originCountry.trim() || !input.destinationCountry.trim()) {
     return "Select both origin and destination countries.";
   }
 
-  if (!input.originPortLocationId || !input.destinationPortLocationId) {
+  if (
+    !String(input.originPortLocationId ?? "").trim() ||
+    !String(input.destinationPortLocationId ?? "").trim()
+  ) {
     return "Select both origin and destination ports.";
   }
 
@@ -72,7 +82,10 @@ export function validateProcurementInput(
   if (destinationUnlocode.slice(0, 2) !== destinationCountry) {
     return "The destination port does not belong to the selected destination country. Reselect the port.";
   }
-  if (input.originPortLocationId === input.destinationPortLocationId) {
+  if (
+    input.originPortLocationId === input.destinationPortLocationId ||
+    originUnlocode === destinationUnlocode
+  ) {
     return "Origin and destination must be different locations.";
   }
 
