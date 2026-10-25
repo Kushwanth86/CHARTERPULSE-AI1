@@ -84,7 +84,7 @@ def parse_csv(path: str | Path) -> list[dict[str, Any]]:
         raise FileNotFoundError(f"Input CSV not found: {csv_path}")
 
     records: list[dict[str, Any]] = []
-    seen_records: dict[tuple[str, str], int] = {}
+    seen_records: dict[tuple[str, ...], int] = {}
 
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -181,7 +181,7 @@ def parse_csv(path: str | Path) -> list[dict[str, Any]]:
             )
 
             # A source record ID is the stable identity used for idempotent imports.
-            source_identity = (source.casefold(), source_record_id)
+            source_identity = (source.casefold(), source_record_id, origin, destination, vessel_class.casefold(), observed_at)
             previous_row = seen_records.get(source_identity)
             if previous_row is not None:
                 raise ValueError(
