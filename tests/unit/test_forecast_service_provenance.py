@@ -120,3 +120,157 @@ def test_scoped_forecast_rejects_simulated_market_observations(monkeypatch):
         assert "simulated test data" in str(exc)
     else:
         raise AssertionError("Expected simulated observations to be rejected.")
+
+
+def source_rows(**overrides):
+    base = [
+        {
+            "metric": "freight_rate",
+            "value": 29.5,
+            "unit": "USD/MT",
+            "currency": "USD",
+            "vessel_class": "Panamax",
+            "provenance": "REAL",
+            "source": "Licensed Freight Provider",
+            "source_record_id": "quote-001",
+            "source_reference": "https://provider.example/quote/quote-001",
+            "observed_at": "2026-10-20T12:00:00Z",
+            "retrieved_at": "2026-10-25T09:30:00Z",
+        },
+        {
+            "metric": "freight_rate",
+            "value": 30.0,
+            "unit": "USD/MT",
+            "currency": "USD",
+            "vessel_class": "PANAMAX",
+            "provenance": "REAL",
+            "source": "Licensed Freight Provider",
+            "source_record_id": "quote-002",
+            "source_reference": "https://provider.example/quote/quote-002",
+            "observed_at": "2026-10-21T12:00:00Z",
+            "retrieved_at": "2026-10-25T09:30:00Z",
+        },
+        {
+            "metric": "freight_rate",
+            "value": 30.25,
+            "unit": "USD/MT",
+            "currency": "USD",
+            "vessel_class": "Panamax",
+            "provenance": "REAL",
+            "source": "Licensed Freight Provider",
+            "source_record_id": "quote-003",
+            "source_reference": "https://provider.example/quote/quote-003",
+            "observed_at": "2026-10-22T12:00:00Z",
+            "retrieved_at": "2026-10-25T09:30:00Z",
+        },
+    ]
+    return [{**row, **overrides.get(str(index), {})} for index, row in enumerate(base)]
+
+
+def test_source_observation_forecast_preserves_input_lineage(monkeypatch):
+    class SourceMarketRepository:
+        def list(self, **kwargs):
+            return source_rows()
+
+    class RecordingForecastRepository:
+        def __init__(self):
+            self.payload = None
+
+        def create(self, payload):
+            self.payload = payload
+            return payload
+
+    repository = RecordingForecastRepository()
+    monkeypatch.setattr(
+        forecast_service, "MarketRepository", SourceMarketRepository
+    )
+    monkeypatch.setattr(
+        forecast_service, "ForecastRepository", lambda: repository
+    )
+
+    result = forecast_service.ForecastService().generate(
+        FreightForecastRequest(
+            origin_location_id="00000000-0000-0000-0000-000000000001",
+            destination_location_id="00000000-0000-0000-0000-000000000002",
+            vessel_class="Panamax",
+        )
+    )
+
+    metadata = result["metadata"]
+    assert result["provenance"] == "FORECAST"
+    assert metadata["input_provenance"] == "MARKET_OBSERVATION"
+    assert metadata["input_observation_count"] == 3
+    assert metadata["input_observation_provenance"] == ["REAL"]
+    assert metadata["input_sources"] == ["Licensed Freight Provider"]
+    assert metadata["input_source_record_ids"] == [
+        "quote-001",
+        "quote-002",
+        "quote-003",
+    ]
+    assert len(metadata["input_source_references"]) == 3
+    assert metadata["input_unit"] == "USD/MT"
+    assert metadata["input_currency"] == "USD"
+
+
+def test_source_observation_forecast_rejects_mixed_or_incompatible_units(monkeypatch):
+    class WrongUnitRepository:
+        def list(self, **kwargs):
+            rows = source_rows()
+            rows[0]["unit"] = "USD/day"
+            return rows
+
+    class ForbiddenForecastRepository:
+        def create(self, payload):
+            raise AssertionError("Forecast must not be stored for incompatible units.")
+
+    monkeypatch.setattr(
+        forecast_service, "MarketRepository", WrongUnitRepository
+    )
+    monkeypatch.setattr(
+        forecast_service, "ForecastRepository", ForbiddenForecastRepository
+    )
+
+    request = FreightForecastRequest(
+        origin_location_id="00000000-0000-0000-0000-000000000001",
+        destination_location_id="00000000-0000-0000-0000-000000000002",
+        vessel_class="Panamax",
+    )
+
+    try:
+        forecast_service.ForecastService().generate(request)
+    except ValueError as exc:
+        assert "Freight observations must use USD/MT and USD" in str(exc)
+    else:
+        raise AssertionError("Expected incompatible freight units to be rejected.")
+
+
+def test_forecast_derived_rows_cannot_be_reused_as_market_inputs(monkeypatch):
+    class ForecastDerivedMarketRepository:
+        def list(self, **kwargs):
+            rows = source_rows()
+            rows[0]["provenance"] = "FORECAST"
+            return rows
+
+    class ForbiddenForecastRepository:
+        def create(self, payload):
+            raise AssertionError("Forecast-derived observations must not be used.")
+
+    monkeypatch.setattr(
+        forecast_service, "MarketRepository", ForecastDerivedMarketRepository
+    )
+    monkeypatch.setattr(
+        forecast_service, "ForecastRepository", ForbiddenForecastRepository
+    )
+
+    request = FreightForecastRequest(
+        origin_location_id="00000000-0000-0000-0000-000000000001",
+        destination_location_id="00000000-0000-0000-0000-000000000002",
+        vessel_class="Panamax",
+    )
+
+    try:
+        forecast_service.ForecastService().generate(request)
+    except ValueError as exc:
+        assert "Forecast-derived records cannot be reused" in str(exc)
+    else:
+        raise AssertionError("Expected forecast-derived inputs to be rejected.")
