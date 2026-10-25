@@ -95,7 +95,7 @@ def test_cargo_requirement_accepts_positive_finite_quantity_boundaries(quantity)
     assert payload.quantity_mt == quantity
 
 
-@pytest.mark.parametrize("material", ["", " ", "   ", "\\t\\n"])
+@pytest.mark.parametrize("material", ["", " ", "   ", "\t\n"])
 def test_cargo_requirement_rejects_empty_material_after_trimming(material):
     with pytest.raises(ValidationError):
         CargoRequirementCreate(material=material, quantity_mt=1)

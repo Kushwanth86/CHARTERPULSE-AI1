@@ -69,6 +69,11 @@ class CargoRequirementCreate(BaseModel):
                     "latest_delivery must be greater than or equal to earliest_delivery"
                 )
 
+        for field_name in ("origin_location_id", "destination_location_id"):
+            location_id = getattr(self, field_name)
+            if location_id is not None and location_id.version is None:
+                raise ValueError(f"{field_name} must be a versioned UUID")
+
         if (
             self.origin_location_id is not None
             and self.destination_location_id is not None
