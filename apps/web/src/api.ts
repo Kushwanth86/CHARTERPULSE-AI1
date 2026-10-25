@@ -1,4 +1,5 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
+import { isUuid } from "./utils/procurementValidation";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
@@ -104,7 +105,7 @@ function locationToPort(location: Location, countryCode?: string): Port | null {
   if (!unlocode || !/^[A-Z]{2}[A-Z0-9]{3}$/.test(unlocode)) return null; if (countryCode && code !== countryCode) return null;
   const fn = String(location.function ?? location.functions ?? location.function_code ?? raw.function_code ?? raw.functions ?? "").replace(/\s+/g, "");
   if (fn && !fn.startsWith("1")) return null;
-  return { id: location.id, name: location.name, location_id: location.id, unlocode, latitude: location.latitude ?? (typeof raw.lat === "number" ? raw.lat : null), longitude: location.longitude ?? (typeof raw.lon === "number" ? raw.lon : null), source: location.source ?? "UNECE UN/LOCODE", provenance: location.provenance ?? "PUBLIC_PROXY", ...raw } as Port;
+  return { ...raw, id: location.id, name: location.name, location_id: location.id, unlocode, latitude: location.latitude ?? (typeof raw.lat === "number" ? raw.lat : null), longitude: location.longitude ?? (typeof raw.lon === "number" ? raw.lon : null), source: location.source ?? "UNECE UN/LOCODE", provenance: location.provenance ?? "PUBLIC_PROXY" } as Port;
 }
 
 export async function listCountries(): Promise<Country[]> {
@@ -120,6 +121,7 @@ export async function listPorts(countryCode?: string): Promise<Port[]> {
   try {
     const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
     const validPrimary = primary
+      .filter(p => isUuid(p.location_id))
       .filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>))
       .filter(p => {
         if (!normalized) return true;
