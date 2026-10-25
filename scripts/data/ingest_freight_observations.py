@@ -180,6 +180,13 @@ def parse_csv(path: str | Path) -> list[dict[str, Any]]:
                 row["retrieved_at"], column="retrieved_at", row_number=row_number
             )
 
+            observed_datetime = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+            retrieved_datetime = datetime.fromisoformat(retrieved_at.replace("Z", "+00:00"))
+            if retrieved_datetime < observed_datetime:
+                raise ValueError(
+                    f"row {row_number}: retrieved_at cannot precede observed_at"
+                )
+
             # A source record ID is the stable identity used for idempotent imports.
             source_identity = (source, source_record_id)
             previous_row = seen_records.get(source_identity)
