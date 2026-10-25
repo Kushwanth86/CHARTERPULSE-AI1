@@ -31,3 +31,7 @@ class MarketObservationCreate(BaseModel):
 class MarketObservationResponse(MarketObservationCreate):
     id: UUID
     created_at: datetime
+    source_record_id: str | None = None
+    retrieved_at: datetime | None = None
+    ingested_at: datetime | None = None
+    metadata: dict | None = None
