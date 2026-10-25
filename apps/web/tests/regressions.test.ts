@@ -511,6 +511,9 @@ test("port loader keeps only valid live ports matching the selected country", as
 });
 
 test("location fallback recovers after a transient network failure", async () => {
+  // Load an isolated module instance so this test owns a fresh fallback cache.
+  const isolatedApi = await import("../src/api.ts?transient-network-recovery-test");
+  const isolatedListPorts = isolatedApi.listPorts;
   const originalFetch = globalThis.fetch;
   let locationCalls = 0;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -545,10 +548,10 @@ test("location fallback recovers after a transient network failure", async () =>
   }) as typeof fetch;
 
   try {
-    const first = await listPorts("AU");
+    const first = await isolatedListPorts("AU");
     assert.ok(first.every(port => !isUuid(port.location_id)));
 
-    const second = await listPorts("AU");
+    const second = await isolatedListPorts("AU");
     assert.equal(locationCalls, 4);
     assert.equal(second.length, 1);
     assert.equal(second[0].location_id, "00000000-0000-4000-8000-000000000001");
