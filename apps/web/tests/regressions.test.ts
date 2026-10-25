@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   isUuid,
+  isValidUnlocode,
   normalizeCargoType,
   normalizeCountryCode,
   validateProcurementInput,
@@ -247,6 +248,35 @@ test("UUID validator excludes synthetic reference IDs and malformed UUIDs", () =
   assert.equal(isUuid(null), false);
 });
 
+test("UN/LOCODE validator rejects incomplete and malformed location references", () => {
+  assert.equal(isValidUnlocode("AUABP"), true);
+  assert.equal(isValidUnlocode("auabp"), true);
+  assert.equal(isValidUnlocode("AU"), false);
+  assert.equal(isValidUnlocode("AUABP-extra"), false);
+  assert.equal(isValidUnlocode(null), false);
+});
+
+test("port selectors reject malformed UN/LOCODEs even when a location UUID exists", () => {
+  const source = readFileSync(new URL("../src/pages/NewProcurement.tsx", import.meta.url), "utf8");
+  assert.match(source, /isUuid\(port\.location_id\)\s*&&\s*isValidUnlocode\(port\.unlocode\)/);
+  assert.match(source, /String\(port\.unlocode \?\? ""\)\.trim\(\)\.toUpperCase\(\)\.startsWith\(originCountry\)/);
+  assert.match(source, /String\(port\.unlocode \?\? ""\)\.trim\(\)\.toUpperCase\(\)\.startsWith\(destinationCountry\)/);
+});
+
+test("location fallback does not cache empty or failed responses forever", () => {
+  const source = readFileSync(new URL("../src/api.ts", import.meta.url), "utf8");
+  assert.match(source, /if \(!locations\.length\) locationFallbackPromise = null/);
+  assert.match(source, /\.catch\(\(\) => \{\s*\/\/ A transient outage must not poison the cache for the rest of the session\.\s*locationFallbackPromise = null;\s*return \[\];/);
+});
+
+test("country selector deduplicates country codes and normalizes case", () => {
+  const source = readFileSync(new URL("../src/pages/NewProcurement.tsx", import.meta.url), "utf8");
+  assert.match(source, /normalizeCountryCode\(country\.iso2, country\.country_code, country\.code\)/);
+  assert.match(source, /const unique = new Map<string, Option>\(\)/);
+  assert.match(source, /if \(!countryCode \|\| unique\.has\(countryCode\)\) continue/);
+});
+
+
 test("vessel-class selection covers every listed bulk class", () => {
   assert.equal(vesselClassFromCargoType("DRY_BULK_PANAMAX"), "Panamax");
   assert.equal(vesselClassFromCargoType("DRY_BULK_CAPESIZE"), "Capesize");
@@ -308,10 +338,11 @@ test("procurement validator rejects routes with duplicate UN/LOCODEs", () => {
   );
 });
 
-test("port loader checks the live location UUID before accepting primary API records", () => {
+test("port loader filters primary API records by valid IDs and UN/LOCODE", () => {
   const source = readFileSync(new URL("../src/api.ts", import.meta.url), "utf8");
   assert.match(source, /const validPrimary = primary\s*\.filter\(p => isUuid\(p\.location_id\)\)/);
-  assert.match(source, /import \{ isUuid, normalizeCountryCode \} from "\.\/utils\/procurementValidation"/);
+  assert.match(source, /\.filter\(p => isValidUnlocode\(unlocodeFromRecord/);
+  assert.match(source, /import \{ isUuid, isValidUnlocode, normalizeCountryCode \} from "\.\/utils\/procurementValidation"/);
 });
 
 test("location fallback preserves canonical source location identifiers", () => {
