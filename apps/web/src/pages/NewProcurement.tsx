@@ -17,6 +17,7 @@ import CalendarPicker from "../components/common/CalendarPicker";
 import {
   isUuid,
   validateProcurementInput,
+  vesselClassFromCargoType,
 } from "../utils/procurementValidation";
 
 export type ProcurementContext = {
@@ -66,19 +67,6 @@ const code = (country: Country) =>
   )
     .slice(0, 2)
     .toUpperCase();
-
-const vesselClassFromCargoType = (
-  value: string,
-): string | null => {
-  const match = value.match(
-    /^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/,
-  );
-
-  return match
-    ? match[1].charAt(0) +
-        match[1].slice(1).toLowerCase()
-    : null;
-};
 
 function SearchDropdown({
   label,
@@ -146,10 +134,14 @@ function SearchDropdown({
       className="field search-dropdown"
       ref={root}
     >
-      <label>{label}</label>
+      <label htmlFor={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{label}</label>
 
       <button
+        id={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
         type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`search-trigger ${open ? "open" : ""}`}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
@@ -185,7 +177,7 @@ function SearchDropdown({
             />
           </div>
 
-          <div className="search-results">
+          <div className="search-results" role="listbox" aria-label={label + " options"}>
             {filtered.map((option) => (
               <button
                 type="button"
@@ -193,6 +185,8 @@ function SearchDropdown({
                 className={`search-option ${
                   option.id === value ? "selected" : ""
                 }`}
+                role="option"
+                aria-selected={option.id === value}
                 onClick={() => {
                   onChange(option.id);
                   setOpen(false);
@@ -580,7 +574,10 @@ export default function NewProcurement({
             options={cargoOptions}
             placeholder="Select standardized cargo type"
             helper="Dry-bulk transport classification."
-            onChange={setCargoType}
+            onChange={(value) => {
+              setCargoType(value);
+              setError("");
+            }}
           />
 
           <div className="field">
@@ -734,8 +731,9 @@ export default function NewProcurement({
 
         <div className="form-grid two">
           <div className="field">
-            <label>PRIORITY</label>
+            <label htmlFor="procurement-priority">PRIORITY</label>
             <select
+              id="procurement-priority"
               value={priority}
               onChange={(e) => {
                 setPriority(e.target.value);
