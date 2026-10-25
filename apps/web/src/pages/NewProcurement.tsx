@@ -16,6 +16,8 @@ import {
 import CalendarPicker from "../components/common/CalendarPicker";
 import {
   isUuid,
+  normalizeCargoType,
+  normalizeCountryCode,
   validateProcurementInput,
   vesselClassFromCargoType,
 } from "../utils/procurementValidation";
@@ -59,14 +61,7 @@ const defaultDeliveryWindow = () => {
 };
 
 const code = (country: Country) =>
-  String(
-    country.iso2 ??
-      country.country_code ??
-      country.code ??
-      "",
-  )
-    .slice(0, 2)
-    .toUpperCase();
+  normalizeCountryCode(country.iso2, country.country_code, country.code);
 
 function SearchDropdown({
   label,
@@ -346,35 +341,47 @@ export default function NewProcurement({
     [countries],
   );
 
-  const materialOptions = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...REFERENCE_MATERIALS,
-          ...cargoRows
-            .map((row) => row.material)
-            .filter(Boolean),
-        ]),
-      ).map((value) => ({
-        id: value,
-        label: value,
-        meta: "Bulk commodity",
-      })),
-    [cargoRows],
-  );
+  const materialOptions = useMemo(() => {
+    const values = [
+      ...REFERENCE_MATERIALS,
+      ...cargoRows.map((row) => row.material ?? ""),
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const uniqueValues = new Map<string, string>();
+
+    for (const value of values) {
+      const key = value.toLocaleLowerCase();
+      if (!uniqueValues.has(key)) uniqueValues.set(key, value);
+    }
+
+    return [...uniqueValues.values()].map((value) => ({
+      id: value,
+      label: value,
+      meta: "Bulk commodity",
+    }));
+  }, [cargoRows]);
 
   const cargoOptions = useMemo(() => {
     const databaseTypes = cargoRows
-      .map((row) => row.cargo_type)
-      .filter(Boolean) as string[];
+      .map((row) => row.cargo_type?.trim() ?? "")
+      .filter(Boolean);
+    const rawTypes = [
+      ...REFERENCE_CARGO_TYPES.map((item) => item.id),
+      ...databaseTypes,
+    ];
+    const uniqueTypes = new Map<string, string>();
 
-    const referenceTypes = REFERENCE_CARGO_TYPES.map(
-      (item) => item.id,
-    );
+    for (const rawType of rawTypes) {
+      const canonicalReference = REFERENCE_CARGO_TYPES.find(
+        (item) => item.id.toUpperCase() === rawType.toUpperCase(),
+      )?.id;
+      const id = canonicalReference ?? rawType;
+      const key = id.toUpperCase();
+      if (!uniqueTypes.has(key)) uniqueTypes.set(key, id);
+    }
 
-    return Array.from(
-      new Set([...referenceTypes, ...databaseTypes]),
-    ).map((id) => {
+    return [...uniqueTypes.values()].map((id) => {
       const reference = REFERENCE_CARGO_TYPES.find(
         (item) => item.id === id,
       );
@@ -471,14 +478,8 @@ export default function NewProcurement({
     setSaving(true);
 
     try {
-      const normalizedCargoType = cargoType.startsWith(
-        "DRY_BULK",
-      )
-        ? "DRY_BULK"
-        : cargoType;
-
       const cargo = await createCargo({
-        cargo_type: normalizedCargoType,
+        cargo_type: normalizeCargoType(cargoType),
         material: material.trim(),
         quantity_mt: parsedQuantity,
         origin_location_id: op.location_id,
