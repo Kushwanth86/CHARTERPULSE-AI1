@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   isUuid,
   validateProcurementInput,
+  vesselClassFromCargoType,
   type ProcurementValidationInput,
 } from "../src/utils/procurementValidation";
 
@@ -243,3 +244,40 @@ test("UUID validator excludes synthetic reference IDs and malformed UUIDs", () =
   assert.equal(isUuid("00000000-0000-0000-0000-000000000001"), false);
   assert.equal(isUuid(null), false);
 });
+
+test("vessel-class selection covers every listed bulk class", () => {
+  assert.equal(vesselClassFromCargoType("DRY_BULK_PANAMAX"), "Panamax");
+  assert.equal(vesselClassFromCargoType("DRY_BULK_CAPESIZE"), "Capesize");
+  assert.equal(vesselClassFromCargoType("DRY_BULK_HANDYSIZE"), "Handysize");
+  assert.equal(vesselClassFromCargoType("DRY_BULK"), null);
+  assert.equal(vesselClassFromCargoType("UNKNOWN"), null);
+});
+
+test("procurement validator rejects whitespace country codes", () => {
+  assert.equal(
+    validate({ originCountry: "   " }),
+    "Select both origin and destination countries.",
+  );
+});
+
+test("procurement validator rejects routes with duplicate UN/LOCODEs", () => {
+  assert.equal(
+    validate({ destinationPortUnlocode: "AUABC" }),
+    "Origin and destination must be different locations.",
+  );
+});
+
+test("port loader checks the live location UUID before accepting primary API records", () => {
+  const source = readFileSync(new URL("../src/api.ts", import.meta.url), "utf8");
+  assert.match(source, /const validPrimary = primary\s*\.filter\(p => isUuid\(p\.location_id\)\)/);
+  assert.match(source, /import \{ isUuid \} from "\.\/utils\/procurementValidation"/);
+});
+
+test("location fallback preserves canonical source location identifiers", () => {
+  const source = readFileSync(new URL("../src/api.ts", import.meta.url), "utf8");
+  assert.match(
+    source,
+    /return \{ \.\.\.raw, id: location\.id, name: location\.name, location_id: location\.id/,
+  );
+});
+
