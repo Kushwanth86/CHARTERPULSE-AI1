@@ -8,10 +8,18 @@ export function isUuid(value: string | null | undefined): boolean {
 }
 
 export function vesselClassFromCargoType(value: string): string | null {
-  const match = value.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
+  const normalized = value.trim().toUpperCase();
+  const match = normalized.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
   return match
     ? match[1].charAt(0) + match[1].slice(1).toLowerCase()
     : null;
+}
+
+export function normalizeCargoType(value: string): string {
+  const normalized = value.trim();
+  return /^DRY_BULK(?:_|$)/i.test(normalized)
+    ? "DRY_BULK"
+    : normalized;
 }
 
 function isValidIsoDate(value: string): boolean {
