@@ -84,7 +84,7 @@ def parse_csv(path: str | Path) -> list[dict[str, Any]]:
         raise FileNotFoundError(f"Input CSV not found: {csv_path}")
 
     records: list[dict[str, Any]] = []
-    seen_records: dict[tuple[str, ...], int] = {}
+    seen_records: dict[tuple[str, str], int] = {}
 
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -181,7 +181,7 @@ def parse_csv(path: str | Path) -> list[dict[str, Any]]:
             )
 
             # A source record ID is the stable identity used for idempotent imports.
-            source_identity = (source.casefold(), source_record_id, origin, destination, vessel_class.casefold(), observed_at)
+            source_identity = (source, source_record_id)
             previous_row = seen_records.get(source_identity)
             if previous_row is not None:
                 raise ValueError(
@@ -296,14 +296,11 @@ def build_payloads(
     return payloads
 
 
-def observation_identity(row: dict[str, Any]) -> tuple[str, ...]:
+def observation_identity(row: dict[str, Any]) -> tuple[str, str]:
+    # Provider record IDs must be unique within one source. This catches a
+    # reused ID even when a later CSV changes its route/date/value.
     return (
-        str(row.get("origin_location_id") or ""),
-        str(row.get("destination_location_id") or ""),
-        str(row.get("vessel_class") or "").strip().casefold(),
-        str(row.get("metric") or "").strip().lower(),
-        str(row.get("observed_at") or ""),
-        str(row.get("source") or "").strip().casefold(),
+        str(row.get("source") or "").strip(),
         str(row.get("source_record_id") or "").strip(),
     )
 
@@ -335,7 +332,14 @@ def prepare_insert_plan(
             continue
 
         same_observation = (
-            math.isclose(
+            str(prior.get("origin_location_id") or "") == payload["origin_location_id"]
+            and str(prior.get("destination_location_id") or "") == payload["destination_location_id"]
+            and str(prior.get("vessel_class") or "").strip().casefold()
+            == payload["vessel_class"].strip().casefold()
+            and str(prior.get("metric") or "").strip().lower() == payload["metric"]
+            and str(prior.get("observed_at") or "") == payload["observed_at"]
+            and str(prior.get("market_type") or "") == payload["market_type"]
+            and math.isclose(
                 float(prior.get("value")),
                 float(payload["value"]),
                 rel_tol=0,
@@ -358,37 +362,33 @@ def prepare_insert_plan(
     return inserts, skipped
 
 
-def existing_route_observations(
+def existing_source_records(
     client,
     payloads: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str, str], None] = {}
+    """Look up only incoming source IDs, independent of their claimed route."""
+    groups: dict[str, set[str]] = defaultdict(set)
     for row in payloads:
-        groups[
-            (
-                row["origin_location_id"],
-                row["destination_location_id"],
-                row["vessel_class"],
-            )
-        ] = None
+        groups[row["source"]].add(row["source_record_id"])
 
     existing: list[dict[str, Any]] = []
     columns = (
-        "origin_location_id,destination_location_id,vessel_class,metric,value,"
-        "unit,currency,observed_at,source,source_record_id,source_reference,provenance"
+        "origin_location_id,destination_location_id,vessel_class,market_type,metric,"
+        "value,unit,currency,observed_at,source,source_record_id,source_reference,"
+        "provenance"
     )
 
-    for origin_id, destination_id, vessel_class in groups:
-        query = (
-            client.table("market_observations")
-            .select(columns)
-            .eq("origin_location_id", origin_id)
-            .eq("destination_location_id", destination_id)
-            .ilike("vessel_class", vessel_class)
-            .eq("metric", METRIC)
-        )
-        response = query.limit(5000).execute()
-        existing.extend(response.data or [])
+    for source, record_ids in groups.items():
+        ids = sorted(record_ids)
+        for start in range(0, len(ids), 100):
+            query = (
+                client.table("market_observations")
+                .select(columns)
+                .eq("source", source)
+                .in_("source_record_id", ids[start : start + 100])
+            )
+            response = query.limit(100).execute()
+            existing.extend(response.data or [])
 
     return existing
 
@@ -434,7 +434,7 @@ def main() -> int:
     payloads = build_payloads(records, locations, input_filename=args.csv)
 
     try:
-        existing = existing_route_observations(read_client, payloads)
+        existing = existing_source_records(read_client, payloads)
     except Exception as exc:
         raise RuntimeError(
             "Could not read market-observation source identity fields. "
