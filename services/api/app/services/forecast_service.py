@@ -83,6 +83,45 @@ class ForecastService:
                 "market data."
             )
 
+        forecast_inputs = [
+            row for row in observations
+            if str(row.get("provenance", "")).upper() == "FORECAST"
+        ]
+        if forecast_inputs:
+            raise ValueError(
+                "Forecast-derived records cannot be reused as raw market "
+                "observations. Ingest the original source observations instead."
+            )
+
+        # The current forecast engine models USD per metric tonne. Mixing USD/day,
+        # index points, non-USD currencies, or missing unit metadata would create
+        # numerically plausible but commercially invalid forecasts.
+        if observations:
+            expected_unit = str(payload.unit or "").strip().upper().replace(" ", "")
+            expected_currency = str(payload.currency or "").strip().upper()
+            incompatible = [
+                row for row in observations
+                if str(row.get("unit") or "").strip().upper().replace(" ", "")
+                != expected_unit
+                or str(row.get("currency") or "").strip().upper()
+                != expected_currency
+            ]
+            if incompatible:
+                units = sorted({
+                    str(row.get("unit") or "<missing>")
+                    for row in incompatible
+                })
+                currencies = sorted({
+                    str(row.get("currency") or "<missing>")
+                    for row in incompatible
+                })
+                raise ValueError(
+                    f"Freight observations must use {expected_unit} and "
+                    f"{expected_currency}; incompatible units={units}, "
+                    f"currencies={currencies}. Convert the source data with a "
+                    "documented transformation before ingesting it."
+                )
+
         input_provenance = "MARKET_OBSERVATION"
 
         # Never label broad-market or proxy observations as route/class-specific.
@@ -104,6 +143,30 @@ class ForecastService:
 
         metadata = dict(result.get("metadata") or {})
         metadata["input_provenance"] = input_provenance
+
+        if input_provenance == "MARKET_OBSERVATION":
+            metadata["input_observation_count"] = len(observations)
+            metadata["input_observation_provenance"] = sorted({
+                str(row.get("provenance") or "UNKNOWN").upper()
+                for row in observations
+            })
+            metadata["input_sources"] = sorted({
+                str(row.get("source")).strip()
+                for row in observations
+                if row.get("source")
+            })
+            metadata["input_source_record_ids"] = sorted({
+                str(row.get("source_record_id")).strip()
+                for row in observations
+                if row.get("source_record_id")
+            })
+            metadata["input_source_references"] = sorted({
+                str(row.get("source_reference")).strip()
+                for row in observations
+                if row.get("source_reference")
+            })
+            metadata["input_unit"] = payload.unit
+            metadata["input_currency"] = payload.currency
 
         result.update(
             {
