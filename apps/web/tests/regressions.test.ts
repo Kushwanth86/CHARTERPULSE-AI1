@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createCargo, listPorts } from "../src/api";
 import {
   isUuid,
   isValidUnlocode,
@@ -353,3 +354,103 @@ test("location fallback preserves canonical source location identifiers", () => 
   );
 });
 
+
+
+test("cargo API preserves varied quantities, custom materials, dates, and every priority", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return new Response(JSON.stringify({ id: "created" }), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const cases = [
+      { quantity_mt: 0.125, material: "Zinc Concentrate", priority: "LOW" },
+      { quantity_mt: 70000, material: "Coking Coal", priority: "NORMAL" },
+      { quantity_mt: 123456789.75, material: "Iron Ore", priority: "HIGH" },
+      { quantity_mt: 1, material: "Limestone", priority: "CRITICAL" },
+    ];
+
+    for (const item of cases) {
+      await createCargo({
+        cargo_type: "DRY_BULK",
+        material: item.material,
+        quantity_mt: item.quantity_mt,
+        origin_location_id: "00000000-0000-4000-8000-000000000001",
+        destination_location_id: "00000000-0000-4000-8000-000000000002",
+        earliest_delivery: "2026-10-25T00:00:00",
+        latest_delivery: "2026-11-15T23:59:59",
+        priority: item.priority,
+      });
+    }
+
+    assert.equal(bodies.length, 4);
+    for (let i = 0; i < cases.length; i += 1) {
+      assert.equal(bodies[i].quantity_mt, cases[i].quantity_mt);
+      assert.equal(bodies[i].material, cases[i].material);
+      assert.equal(bodies[i].priority, cases[i].priority);
+      assert.equal(bodies[i].origin_location_id, "00000000-0000-4000-8000-000000000001");
+      assert.equal(bodies[i].destination_location_id, "00000000-0000-4000-8000-000000000002");
+      assert.equal(bodies[i].earliest_delivery, "2026-10-25T00:00:00");
+      assert.equal(bodies[i].latest_delivery, "2026-11-15T23:59:59");
+      assert.equal(bodies[i].provenance, "USER_PROVIDED");
+      assert.equal(bodies[i].source_reference, "NEW_PROCUREMENT");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("port loader retries the location fallback after an empty reference response", async () => {
+  const originalFetch = globalThis.fetch;
+  let locationCalls = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/v1/ports?")) {
+      return new Response(JSON.stringify({
+        count: 1,
+        data: [{
+          id: "00000000-0000-4000-8000-000000000010",
+          location_id: "ref-au-port",
+          name: "Invalid primary port",
+          unlocode: "AUXXX",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.includes("/api/v1/locations")) {
+      locationCalls += 1;
+      const data = locationCalls === 1 ? [] : [{
+        id: "00000000-0000-4000-8000-000000000001",
+        location_id: "ref-should-not-overwrite-canonical-id",
+        name: "Abbot Point",
+        country_code: "AU",
+        unlocode: "AUABP",
+        function: "1",
+      }];
+      return new Response(JSON.stringify({ count: data.length, data }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error("Unexpected API request: " + url);
+  }) as typeof fetch;
+
+  try {
+    const first = await listPorts("AU");
+    assert.ok(first.every(port => !isUuid(port.location_id)));
+
+    const second = await listPorts("AU");
+    assert.equal(locationCalls, 2);
+    assert.equal(second.length, 1);
+    assert.equal(second[0].name, "Abbot Point");
+    assert.equal(second[0].location_id, "00000000-0000-4000-8000-000000000001");
+    assert.equal(second[0].id, "00000000-0000-4000-8000-000000000001");
+    assert.equal(second[0].unlocode, "AUABP");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
