@@ -15,6 +15,11 @@ export function normalizeCountryCode(...values: unknown[]): string {
   return "";
 }
 
+export function isValidUnlocode(value: string | null | undefined): boolean {
+  const candidate = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}[A-Z0-9]{3}$/.test(candidate);
+}
+
 export function vesselClassFromCargoType(value: string): string | null {
   const normalized = value.trim().toUpperCase();
   const match = normalized.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
