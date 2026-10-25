@@ -16,6 +16,7 @@ import {
 import CalendarPicker from "../components/common/CalendarPicker";
 import {
   isUuid,
+  isValidUnlocode,
   normalizeCargoType,
   normalizeCountryCode,
   validateProcurementInput,
@@ -327,19 +328,21 @@ export default function NewProcurement({
     };
   }, [destinationCountry]);
 
-  const countriesOptions = useMemo(
-    () =>
-      countries
-        .filter((country) => code(country))
-        .map((country) => ({
-          id: code(country),
-          label: country.name,
-          meta: `${code(country)}${
-            country.iso3 ? ` / ${country.iso3}` : ""
-          }`,
-        })),
-    [countries],
-  );
+  const countriesOptions = useMemo(() => {
+    const unique = new Map<string, Option>();
+
+    for (const country of countries) {
+      const countryCode = code(country);
+      if (!countryCode || unique.has(countryCode)) continue;
+      unique.set(countryCode, {
+        id: countryCode,
+        label: country.name,
+        meta: `${countryCode}${country.iso3 ? ` / ${country.iso3}` : ""}`,
+      });
+    }
+
+    return [...unique.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [countries]);
 
   const materialOptions = useMemo(() => {
     const values = [
@@ -400,7 +403,8 @@ export default function NewProcurement({
         .filter(
           (port) =>
             isUuid(port.location_id) &&
-            String(port.unlocode ?? "").toUpperCase().startsWith(originCountry),
+            isValidUnlocode(port.unlocode) &&
+            String(port.unlocode ?? "").trim().toUpperCase().startsWith(originCountry),
         )
         .map((port) => ({
           id: port.id,
@@ -416,7 +420,8 @@ export default function NewProcurement({
         .filter(
           (port) =>
             isUuid(port.location_id) &&
-            String(port.unlocode ?? "").toUpperCase().startsWith(destinationCountry),
+            isValidUnlocode(port.unlocode) &&
+            String(port.unlocode ?? "").trim().toUpperCase().startsWith(destinationCountry),
         )
         .map((port) => ({
           id: port.id,
