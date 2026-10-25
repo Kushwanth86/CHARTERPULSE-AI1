@@ -454,3 +454,105 @@ test("port loader retries the location fallback after an empty reference respons
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("port loader keeps only valid live ports matching the selected country", async () => {
+  const originalFetch = globalThis.fetch;
+  let locationCalls = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/v1/ports?")) {
+      return new Response(JSON.stringify({
+        count: 3,
+        data: [
+          {
+            id: "00000000-0000-4000-8000-000000000010",
+            location_id: "00000000-0000-4000-8000-000000000001",
+            name: "Abbot Point",
+            country_code: "AU",
+            unlocode: "AUABP",
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000011",
+            location_id: "00000000-0000-4000-8000-000000000002",
+            name: "India port",
+            country_code: "IN",
+            unlocode: "INXYZ",
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000012",
+            location_id: "00000000-0000-4000-8000-000000000003",
+            name: "Malformed port",
+            country_code: "AU",
+            unlocode: "AUABP-extra",
+          },
+        ],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.includes("/api/v1/locations")) {
+      locationCalls += 1;
+      return new Response(JSON.stringify({ count: 0, data: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error("Unexpected API request: " + url);
+  }) as typeof fetch;
+
+  try {
+    const ports = await listPorts("AU");
+    assert.equal(ports.length, 1);
+    assert.equal(ports[0].name, "Abbot Point");
+    assert.equal(ports[0].unlocode, "AUABP");
+    assert.equal(locationCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("location fallback recovers after a transient network failure", async () => {
+  const originalFetch = globalThis.fetch;
+  let locationCalls = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/v1/ports?")) {
+      return new Response(JSON.stringify({
+        count: 1,
+        data: [{
+          id: "00000000-0000-4000-8000-000000000010",
+          location_id: "ref-au-port",
+          name: "Invalid primary port",
+          unlocode: "AUXXX",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.includes("/api/v1/locations")) {
+      locationCalls += 1;
+      if (locationCalls <= 3) throw new Error("simulated temporary outage");
+      const data = [{
+        id: "00000000-0000-4000-8000-000000000001",
+        name: "Abbot Point",
+        country_code: "AU",
+        unlocode: "AUABP",
+        function: "1",
+      }];
+      return new Response(JSON.stringify({ count: 1, data }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error("Unexpected API request: " + url);
+  }) as typeof fetch;
+
+  try {
+    const first = await listPorts("AU");
+    assert.ok(first.every(port => !isUuid(port.location_id)));
+
+    const second = await listPorts("AU");
+    assert.equal(locationCalls, 4);
+    assert.equal(second.length, 1);
+    assert.equal(second[0].location_id, "00000000-0000-4000-8000-000000000001");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
