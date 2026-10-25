@@ -132,7 +132,7 @@ def test_cargo_requirement_compares_aware_dates_by_instant():
     [
         ("not-a-date", "2026-10-26T00:00:00"),
         ("2026-10-27T00:00:00", "2026-10-26T00:00:00"),
-        ("2026-10-25T00:00:00+00:00", "2026-10-25T00:00:00-05:00"),
+        ("2026-10-25T00:00:00-05:00", "2026-10-25T00:00:00+00:00"),
     ],
 )
 def test_cargo_requirement_rejects_malformed_or_reversed_delivery_windows(earliest, latest):
