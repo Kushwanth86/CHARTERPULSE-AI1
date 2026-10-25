@@ -1,5 +1,5 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-import { isUuid, normalizeCountryCode } from "./utils/procurementValidation";
+import { isUuid, isValidUnlocode, normalizeCountryCode } from "./utils/procurementValidation";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
@@ -92,7 +92,7 @@ function countryCodeFromRecord(record: Record<string, unknown>): string {
   );
   if (direct) return direct;
   const locode = unlocodeFromRecord(record);
-  return /^[A-Z]{2}[A-Z0-9]{3}$/.test(locode) ? locode.slice(0, 2) : "";
+  return isValidUnlocode(locode) ? locode.slice(0, 2) : "";
 }
 function unlocodeFromRecord(record: Record<string, unknown>): string {
   return [
@@ -113,7 +113,20 @@ function countriesFromLocations(locations: Location[]): Country[] {
 }
 let locationFallbackPromise: Promise<Location[]> | null = null;
 async function listLocationsRaw(): Promise<Location[]> {
-  if (!locationFallbackPromise) locationFallbackPromise = request<ListEnvelope<Location>>("/api/v1/locations").then(unwrapList).catch(() => []);
+  if (!locationFallbackPromise) {
+    locationFallbackPromise = request<ListEnvelope<Location>>("/api/v1/locations")
+      .then(unwrapList)
+      .then(locations => {
+        // Do not permanently cache a temporary empty response.
+        if (!locations.length) locationFallbackPromise = null;
+        return locations;
+      })
+      .catch(() => {
+        // A transient outage must not poison the cache for the rest of the session.
+        locationFallbackPromise = null;
+        return [];
+      });
+  }
   return locationFallbackPromise;
 }
 function locationToPort(location: Location, countryCode?: string): Port | null {
@@ -138,7 +151,7 @@ export async function listPorts(countryCode?: string): Promise<Port[]> {
     const primary = unwrapList(await request<ListEnvelope<Port>>(`/api/v1/ports${query}`));
     const validPrimary = primary
       .filter(p => isUuid(p.location_id))
-      .filter(p => unlocodeFromRecord(p as unknown as Record<string, unknown>))
+      .filter(p => isValidUnlocode(unlocodeFromRecord(p as unknown as Record<string, unknown>)))
       .filter(p => {
         if (!normalized) return true;
         const raw = p as unknown as Record<string, unknown>;
