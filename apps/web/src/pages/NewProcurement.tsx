@@ -140,7 +140,6 @@ function SearchDropdown({
         id={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
         type="button"
         aria-label={label}
-        aria-haspopup="listbox"
         aria-expanded={open}
         className={`search-trigger ${open ? "open" : ""}`}
         disabled={disabled}
@@ -177,7 +176,7 @@ function SearchDropdown({
             />
           </div>
 
-          <div className="search-results" role="listbox" aria-label={label + " options"}>
+          <div className="search-results">
             {filtered.map((option) => (
               <button
                 type="button"
@@ -185,8 +184,6 @@ function SearchDropdown({
                 className={`search-option ${
                   option.id === value ? "selected" : ""
                 }`}
-                role="option"
-                aria-selected={option.id === value}
                 onClick={() => {
                   onChange(option.id);
                   setOpen(false);
