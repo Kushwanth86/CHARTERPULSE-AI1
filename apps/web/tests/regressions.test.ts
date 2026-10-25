@@ -311,7 +311,7 @@ test("procurement validator rejects routes with duplicate UN/LOCODEs", () => {
 test("port loader checks the live location UUID before accepting primary API records", () => {
   const source = readFileSync(new URL("../src/api.ts", import.meta.url), "utf8");
   assert.match(source, /const validPrimary = primary\s*\.filter\(p => isUuid\(p\.location_id\)\)/);
-  assert.match(source, /import \{ isUuid \} from "\.\/utils\/procurementValidation"/);
+  assert.match(source, /import \{ isUuid, normalizeCountryCode \} from "\.\/utils\/procurementValidation"/);
 });
 
 test("location fallback preserves canonical source location identifiers", () => {
