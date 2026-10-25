@@ -7,6 +7,14 @@ export function isUuid(value: string | null | undefined): boolean {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
+export function normalizeCountryCode(...values: unknown[]): string {
+  for (const value of values) {
+    const candidate = String(value ?? "").trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(candidate)) return candidate;
+  }
+  return "";
+}
+
 export function vesselClassFromCargoType(value: string): string | null {
   const normalized = value.trim().toUpperCase();
   const match = normalized.match(/^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/);
