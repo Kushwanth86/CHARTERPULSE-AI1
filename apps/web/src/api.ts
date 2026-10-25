@@ -1,5 +1,5 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
-import { isUuid } from "./utils/procurementValidation";
+import { isUuid, normalizeCountryCode } from "./utils/procurementValidation";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
 export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
@@ -81,14 +81,30 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   throw lastError instanceof Error ? lastError : new Error("API request failed.");
 }
 
-function normalizeCountryCode(value: unknown): string { const raw = String(value ?? "").trim().toUpperCase(); return /^[A-Z]{2}$/.test(raw) ? raw : ""; }
 function countryCodeFromRecord(record: Record<string, unknown>): string {
-  const direct = normalizeCountryCode(record.iso2 ?? record.iso_2 ?? record.country_code ?? record.countryCode ?? record.code ?? record.country);
+  const direct = normalizeCountryCode(
+    record.iso2,
+    record.iso_2,
+    record.country_code,
+    record.countryCode,
+    record.code,
+    record.country,
+  );
   if (direct) return direct;
-  const locode = String(record.unlocode ?? record.locode ?? record.location_code ?? record.locationCode ?? "").trim().toUpperCase();
+  const locode = unlocodeFromRecord(record);
   return /^[A-Z]{2}[A-Z0-9]{3}$/.test(locode) ? locode.slice(0, 2) : "";
 }
-function unlocodeFromRecord(record: Record<string, unknown>): string { return String(record.unlocode ?? record.locode ?? record.location_code ?? record.locationCode ?? record.code ?? "").trim().toUpperCase(); }
+function unlocodeFromRecord(record: Record<string, unknown>): string {
+  return [
+    record.unlocode,
+    record.locode,
+    record.location_code,
+    record.locationCode,
+    record.code,
+  ]
+    .map(value => String(value ?? "").trim().toUpperCase())
+    .find(Boolean) ?? "";
+}
 function displayCountryName(code: string): string { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code; } catch { return code; } }
 function countriesFromLocations(locations: Location[]): Country[] {
   const map = new Map<string, Country>();
