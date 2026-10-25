@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import type { Vessel } from "../src/api";
+import { selectRecommendedVessel, vesselCapacityMt } from "../src/utils/vesselSelection";
 
 const apiSource = readFileSync(
   new URL("../src/api.ts", import.meta.url),
@@ -86,4 +88,74 @@ test("human decision history reads persisted records from the API", () => {
   assert.match(historySource, /Saved human decisions are loaded from the server/);
   assert.match(routeSource, /@router\.get\([\s\S]*\/human/);
   assert.match(serviceSource, /\.table\("human_decisions"\)[\s\S]*\.order\("decided_at", desc=True\)/);
+});
+
+
+function makeVessel(
+  overrides: Partial<Vessel> & Pick<Vessel, "id" | "name" | "provenance">,
+): Vessel {
+  return {
+    vessel_class: "Bulk Carrier",
+    cargo_capacity_mt: null,
+    dwt: null,
+    dwt_mt: null,
+    ...overrides,
+  };
+}
+
+test("recommendation uses dwt_mt when cargo capacity is not populated", () => {
+  const smaller = makeVessel({
+    id: "small",
+    name: "SMALL BULKER",
+    provenance: "PUBLIC_PROXY",
+    dwt_mt: 60000,
+  });
+  const suitable = makeVessel({
+    id: "suitable",
+    name: "OCEAN EMERALD",
+    provenance: "PUBLIC_PROXY",
+    dwt_mt: 92950,
+  });
+
+  assert.equal(
+    selectRecommendedVessel([smaller, suitable], 70000),
+    suitable,
+  );
+  assert.equal(vesselCapacityMt(suitable), 92950);
+});
+
+test("recommendation chooses the smallest suitable vessel by available capacity", () => {
+  const larger = makeVessel({
+    id: "larger",
+    name: "LARGE BULKER",
+    provenance: "PUBLIC_PROXY",
+    dwt_mt: 120000,
+  });
+  const smallerSuitable = makeVessel({
+    id: "smaller-suitable",
+    name: "MEDIUM BULKER",
+    provenance: "PUBLIC_PROXY",
+    dwt_mt: 80000,
+  });
+
+  assert.equal(
+    selectRecommendedVessel([larger, smallerSuitable], 70000),
+    smallerSuitable,
+  );
+});
+
+test("populated cargo capacity takes precedence over deadweight", () => {
+  const knownCapacity = makeVessel({
+    id: "capacity-known",
+    name: "CAPACITY-KNOWN BULKER",
+    provenance: "PUBLIC_PROXY",
+    cargo_capacity_mt: 65000,
+    dwt_mt: 100000,
+  });
+
+  assert.equal(vesselCapacityMt(knownCapacity), 65000);
+  assert.notEqual(
+    selectRecommendedVessel([knownCapacity], 70000),
+    knownCapacity,
+  );
 });
