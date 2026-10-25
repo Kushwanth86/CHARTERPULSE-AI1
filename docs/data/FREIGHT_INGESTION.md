@@ -30,7 +30,7 @@ a reviewed quote file. Required columns:
 
 ```csv
 origin_unlocode,destination_unlocode,vessel_class,market_type,metric,value,unit,currency,observed_at,retrieved_at,source,source_record_id,source_reference,provenance
-AUABP,INACH,Panamax,DRY_BULK_FREIGHT,29.75,freight_rate,USD/MT,USD,2026-10-20T12:00:00Z,2026-10-25T15:00:00Z,Example Provider,quote-unique-id,https://provider.example/quote/quote-unique-id,REAL
+AUABP,INACH,Panamax,DRY_BULK_FREIGHT,freight_rate,29.75,USD/MT,USD,2026-10-20T12:00:00Z,2026-10-25T15:00:00Z,Example Provider,quote-unique-id,https://provider.example/quote/quote-unique-id,REAL
 ```
 
 The row above is **schema illustration only, not a real rate**. Do not load it.
