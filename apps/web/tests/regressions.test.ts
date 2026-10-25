@@ -63,7 +63,7 @@ test("procurement intake supports custom materials, editable quantities, and cor
   assert.match(source, /setMaterial\(event\.target\.value\)/);
   assert.match(source, /step="any"/);
   assert.match(source, /setQuantity\(event\.target\.value\)/);
-  assert.match(source, /parsedQuantity <= 0/);
+  assert.match(source, /validateProcurementInput\(/);
   assert.doesNotMatch(source, /Number\.isInteger\(parsedQuantity\)/);
   assert.match(source, /value=\{priority\}/);
   assert.match(source, /setPriority\(e\.target\.value\)/);
