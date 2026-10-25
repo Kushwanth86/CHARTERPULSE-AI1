@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   isUuid,
+  normalizeCargoType,
+  normalizeCountryCode,
   validateProcurementInput,
   vesselClassFromCargoType,
   type ProcurementValidationInput,
@@ -252,6 +254,45 @@ test("vessel-class selection covers every listed bulk class", () => {
   assert.equal(vesselClassFromCargoType("DRY_BULK"), null);
   assert.equal(vesselClassFromCargoType("UNKNOWN"), null);
 });
+
+test("cargo type mapping is case-insensitive and does not misclassify ordinary cargo types", () => {
+  assert.equal(vesselClassFromCargoType("dry_bulk_panamax"), "Panamax");
+  assert.equal(vesselClassFromCargoType(" DRY_BULK_CAPESIZE "), "Capesize");
+  assert.equal(normalizeCargoType("dry_bulk_panamax"), "DRY_BULK");
+  assert.equal(normalizeCargoType(" DRY_BULK "), "DRY_BULK");
+  assert.equal(normalizeCargoType("general cargo"), "general cargo");
+  assert.equal(normalizeCargoType("dry_bulker"), "dry_bulker");
+});
+
+test("country normalization skips blank or invalid earlier fields", () => {
+  assert.equal(normalizeCountryCode("", "au", "AUS"), "AU");
+  assert.equal(normalizeCountryCode("Australia", "IN"), "IN");
+  assert.equal(normalizeCountryCode("GB"), "GB");
+  assert.equal(normalizeCountryCode("AUS"), "");
+});
+
+test("procurement accepts trimmed custom materials and case-insensitive location codes", () => {
+  assert.equal(
+    validate({
+      material: "  Zinc Concentrate  ",
+      originCountry: "au",
+      destinationCountry: "in",
+      originPortUnlocode: "auabc",
+      destinationPortUnlocode: "inxyz",
+    }),
+    null,
+  );
+});
+
+test("procurement validator rejects missing delivery dates and invalid current date", () => {
+  assert.equal(validate({ fromDate: "" }), "Enter valid start and end dates.");
+  assert.equal(validate({ toDate: "" }), "Enter valid start and end dates.");
+  assert.match(
+    validate({ today: "" }) ?? "",
+    /Unable to validate the delivery window/,
+  );
+});
+
 
 test("procurement validator rejects whitespace country codes", () => {
   assert.equal(
