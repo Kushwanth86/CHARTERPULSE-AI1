@@ -219,3 +219,46 @@ def test_prepare_insert_plan_rejects_silent_correction_of_old_observation():
             [dict(payload, value=30.00)],
             [dict(payload)],
         )
+
+
+def test_ingestion_provenance_fields_are_readable_but_not_required_on_create():
+    from services.api.app.schemas.market import (
+        MarketObservationCreate,
+        MarketObservationResponse,
+    )
+
+    base = {
+        "market_type": "DRY_BULK_FREIGHT",
+        "metric": "freight_rate",
+        "origin_location_id": "00000000-0000-4000-8000-000000000001",
+        "destination_location_id": "00000000-0000-4000-8000-000000000002",
+        "vessel_class": "Panamax",
+        "value": 29.75,
+        "unit": "USD/MT",
+        "currency": "USD",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "source": "Licensed Freight Provider",
+        "source_reference": "https://provider.example/quote/quote-123",
+        "provenance": "REAL",
+    }
+    create = MarketObservationCreate(**base)
+    dumped = create.model_dump(mode="json")
+
+    assert "source_record_id" not in dumped
+    assert "retrieved_at" not in dumped
+    assert "ingested_at" not in dumped
+    assert "metadata" not in dumped
+
+    response = MarketObservationResponse(
+        **base,
+        id="00000000-0000-4000-8000-000000000003",
+        created_at="2026-10-25T15:00:00Z",
+        source_record_id="quote-123",
+        retrieved_at="2026-10-25T09:30:00Z",
+        ingested_at="2026-10-25T15:00:01Z",
+        metadata={"schema_version": "1"},
+    )
+    assert response.source_record_id == "quote-123"
+    assert response.retrieved_at is not None
+    assert response.ingested_at is not None
+    assert response.metadata == {"schema_version": "1"}
