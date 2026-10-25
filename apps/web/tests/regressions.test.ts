@@ -47,16 +47,29 @@ test("frontend API base is not a localhost-only production endpoint", () => {
   assert.match(apiSource, /https:\/\/charterpulse-ai1\.onrender\.com/);
 });
 
-test("procurement intake preserves invalid quantity input and validates before submission", () => {
+test("procurement intake supports custom materials, editable quantities, and correct priority state", () => {
   const source = readFileSync(
     new URL("../src/pages/NewProcurement.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(source, /setQuantity\(e\.target\.value\)/);
-  assert.match(source, /Number\.isInteger\(parsedQuantity\)/);
+  assert.match(source, /id="procurement-material"/);
+  assert.match(source, /list="procurement-material-options"/);
+  assert.match(source, /setMaterial\(event\.target\.value\)/);
+  assert.match(source, /step="any"/);
+  assert.match(source, /setQuantity\(event\.target\.value\)/);
   assert.match(source, /parsedQuantity <= 0/);
+  assert.doesNotMatch(source, /Number\.isInteger\(parsedQuantity\)/);
+  assert.match(source, /value=\{priority\}/);
+  assert.match(source, /setPriority\(e\.target\.value\)/);
+  assert.doesNotMatch(
+    source,
+    /onChange=\{\(e\) => setQuantity\(e\.target\.value\)\}[^]*<option value="LOW">/,
+  );
+  assert.match(source, /originPorts[^]*filter\(\(port\) => isUuid\(port\.location_id\)\)/);
+  assert.match(source, /destinationPorts[^]*filter\(\(port\) => isUuid\(port\.location_id\)\)/);
+  assert.match(source, /const \[material, setMaterial\] = useState\(""\)/);
+  assert.match(source, /const \[quantity, setQuantity\] = useState\(""\)/);
   assert.match(source, /defaultDeliveryWindow/);
-  assert.doesNotMatch(source, /setQuantity\(Math\.max\(1,/);
 });
 
 test("human decision controls guard duplicate submissions and report save status", () => {
