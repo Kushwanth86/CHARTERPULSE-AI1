@@ -14,6 +14,10 @@ import {
   REFERENCE_MATERIALS,
 } from "../data/referenceData";
 import CalendarPicker from "../components/common/CalendarPicker";
+import {
+  isUuid,
+  validateProcurementInput,
+} from "../utils/procurementValidation";
 
 export type ProcurementContext = {
   cargo: CargoRequirement;
@@ -75,17 +79,6 @@ const vesselClassFromCargoType = (
         match[1].slice(1).toLowerCase()
     : null;
 };
-
-function isUuid(
-  value: string | null | undefined,
-): boolean {
-  return (
-    typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  );
-}
 
 function SearchDropdown({
   label,
@@ -406,25 +399,33 @@ export default function NewProcurement({
   const originOptions = useMemo(
     () =>
       originPorts
-        .filter((port) => isUuid(port.location_id))
+        .filter(
+          (port) =>
+            isUuid(port.location_id) &&
+            String(port.unlocode ?? "").toUpperCase().startsWith(originCountry),
+        )
         .map((port) => ({
           id: port.id,
           label: port.name,
           meta: port.unlocode || "UN/LOCODE unavailable",
         })),
-    [originPorts],
+    [originPorts, originCountry],
   );
 
   const destinationOptions = useMemo(
     () =>
       destinationPorts
-        .filter((port) => isUuid(port.location_id))
+        .filter(
+          (port) =>
+            isUuid(port.location_id) &&
+            String(port.unlocode ?? "").toUpperCase().startsWith(destinationCountry),
+        )
         .map((port) => ({
           id: port.id,
           label: port.name,
           meta: port.unlocode || "UN/LOCODE unavailable",
         })),
-    [destinationPorts],
+    [destinationPorts, destinationCountry],
   );
 
   const op = originPorts.find(
@@ -448,69 +449,34 @@ export default function NewProcurement({
 
     setError("");
 
+    const validationError = validateProcurementInput({
+      material,
+      cargoType,
+      originCountry,
+      destinationCountry,
+      originPortLocationId: op?.location_id,
+      destinationPortLocationId: dp?.location_id,
+      originPortUnlocode: op?.unlocode,
+      destinationPortUnlocode: dp?.unlocode,
+      quantity,
+      fromDate,
+      toDate,
+      today: formatLocalDate(new Date()),
+      priority,
+    });
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    // The validator has confirmed these selected records are present.
+    if (!op || !dp || !oc || !dc) {
+      setError("Select valid countries and ports before submitting.");
+      return;
+    }
+
     const parsedQuantity = Number(quantity);
-
-    if (
-      !material ||
-      !cargoType ||
-      !oc ||
-      !dc ||
-      !op ||
-      !dp
-    ) {
-      setError(
-        "Select material, cargo type, both countries and both ports.",
-      );
-      return;
-    }
-
-    // Do not submit synthetic or invalid location IDs.
-    if (
-      !isUuid(op.location_id) ||
-      !isUuid(dp.location_id)
-    ) {
-      setError(
-        "The selected ports do not have valid live location IDs. " +
-          "Select ports backed by verified API location data.",
-      );
-      return;
-    }
-
-    if (
-      !quantity.trim() ||
-      !Number.isFinite(parsedQuantity) ||
-      parsedQuantity <= 0
-    ) {
-      setError(
-        "Quantity must be a positive number of metric tonnes.",
-      );
-      return;
-    }
-
-    if (
-      !fromDate ||
-      !toDate ||
-      Number.isNaN(Date.parse(fromDate)) ||
-      Number.isNaN(Date.parse(toDate))
-    ) {
-      setError("Enter a valid start and end date.");
-      return;
-    }
-
-    const today = formatLocalDate(new Date());
-
-    if (fromDate < today) {
-      setError("From Date cannot be in the past.");
-      return;
-    }
-
-    if (fromDate > toDate) {
-      setError(
-        "From Date must be on or before To Date.",
-      );
-      return;
-    }
-
     setSaving(true);
 
     try {
@@ -522,7 +488,7 @@ export default function NewProcurement({
 
       const cargo = await createCargo({
         cargo_type: normalizedCargoType,
-        material,
+        material: material.trim(),
         quantity_mt: parsedQuantity,
         origin_location_id: op.location_id,
         destination_location_id: dp.location_id,
@@ -591,7 +557,10 @@ export default function NewProcurement({
               type="text"
               list="procurement-material-options"
               value={material}
-              onChange={(event) => setMaterial(event.target.value)}
+              onChange={(event) => {
+                setMaterial(event.target.value);
+                setError("");
+              }}
               placeholder="Enter a commodity or choose a suggestion"
               autoComplete="off"
             />
@@ -619,12 +588,12 @@ export default function NewProcurement({
             <div className="input-unit">
               <input
                 type="number"
-                min="1"
                 step="any"
                 value={quantity}
-                onChange={(event) =>
-                  setQuantity(event.target.value)
-                }
+                onChange={(event) => {
+                  setQuantity(event.target.value);
+                  setError("");
+                }}
                 aria-label="Quantity in metric tonnes"
               />
               <span>MT</span>
@@ -643,7 +612,10 @@ export default function NewProcurement({
             value={originCountry}
             options={countriesOptions}
             placeholder="Search country / ISO2 / ISO3"
-            onChange={setOriginCountry}
+            onChange={(value) => {
+              setOriginCountry(value);
+              setError("");
+            }}
           />
 
           <SearchDropdown
@@ -661,7 +633,10 @@ export default function NewProcurement({
                 : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
             }
             disabled={!originCountry || originOptions.length === 0}
-            onChange={setOriginPort}
+            onChange={(value) => {
+              setOriginPort(value);
+              setError("");
+            }}
           />
         </div>
 
@@ -671,7 +646,10 @@ export default function NewProcurement({
             value={destinationCountry}
             options={countriesOptions}
             placeholder="Search country / ISO2 / ISO3"
-            onChange={setDestinationCountry}
+            onChange={(value) => {
+              setDestinationCountry(value);
+              setError("");
+            }}
           />
 
           <SearchDropdown
@@ -689,7 +667,10 @@ export default function NewProcurement({
                 : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
             }
             disabled={!destinationCountry || destinationOptions.length === 0}
-            onChange={setDestinationPort}
+            onChange={(value) => {
+              setDestinationPort(value);
+              setError("");
+            }}
           />
         </div>
 
@@ -710,14 +691,20 @@ export default function NewProcurement({
             <CalendarPicker
               label="FROM DATE"
               value={fromDate}
-              onChange={setFromDate}
+              onChange={(value) => {
+                setFromDate(value);
+                setError("");
+              }}
             />
 
             <CalendarPicker
               label="TO DATE"
               value={toDate}
               min={fromDate}
-              onChange={setToDate}
+              onChange={(value) => {
+                setToDate(value);
+                setError("");
+              }}
             />
           </div>
 
@@ -750,7 +737,10 @@ export default function NewProcurement({
             <label>PRIORITY</label>
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value)}
+              onChange={(e) => {
+                setPriority(e.target.value);
+                setError("");
+              }}
             >
               <option value="LOW">Low</option>
               <option value="NORMAL">Normal</option>
