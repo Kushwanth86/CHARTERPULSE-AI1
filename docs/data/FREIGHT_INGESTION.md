@@ -35,8 +35,8 @@ AUABP,INACH,Panamax,DRY_BULK_FREIGHT,freight_rate,29.75,USD/MT,USD,2026-10-20T12
 
 The row above is **schema illustration only, not a real rate**. Do not load it.
 Replace it only with actual source-observed values and the corresponding
-provider reference. A source row ID must be stable across repeat exports.
-Both timestamps must include a timezone; the importer normalizes them to UTC.
+provider reference. A source row ID must be stable and unique within that source across repeat exports.
+Both timestamps must include a timezone; the importer normalizes them to UTC. Retrieval cannot precede the observation timestamp.
 
 For the current forecast engine, only `metric=freight_rate`, `unit=USD/MT`,
 and `currency=USD` are accepted. Other units are rejected instead of being
