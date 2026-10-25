@@ -1,6 +1,6 @@
 import type { Vessel } from "../api";
 
-function vesselCapacityMt(vessel: Vessel): number {
+export function vesselCapacityMt(vessel: Vessel): number {
   return (
     vessel.cargo_capacity_mt ??
     vessel.dwt_mt ??
