@@ -11,24 +11,14 @@ ALTER TABLE public.market_observations
     ADD COLUMN IF NOT EXISTS ingested_at timestamptz NOT NULL DEFAULT now(),
     ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
--- A provider observation can be imported only once for the same route, vessel
--- class, metric, observation time, source, and stable source record ID.
--- Existing observations have NULL source_record_id and are intentionally outside
--- this index because their original provider identity is unknown.
+-- A provider record ID must be stable and unique within one source. This
+-- prevents a corrected or remapped route/date from silently duplicating a
+-- previously imported source record. Legacy rows have NULL source_record_id
+-- and are intentionally outside this index because their original identity
+-- cannot be reconstructed reliably.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_market_observations_source_identity
-    ON public.market_observations (
-        origin_location_id,
-        destination_location_id,
-        lower(vessel_class),
-        metric,
-        observed_at,
-        source,
-        source_record_id
-    )
-    WHERE origin_location_id IS NOT NULL
-      AND destination_location_id IS NOT NULL
-      AND vessel_class IS NOT NULL
-      AND source_record_id IS NOT NULL;
+    ON public.market_observations (source, source_record_id)
+    WHERE source_record_id IS NOT NULL;
 
 COMMENT ON COLUMN public.market_observations.source_record_id IS
     'Stable identifier of the original row/quote in the external source.';
