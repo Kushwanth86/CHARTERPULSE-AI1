@@ -20,6 +20,17 @@ const appSource = readFileSync(
   new URL("../src/App.tsx", import.meta.url),
   "utf8",
 );
+const procurementSource = readFileSync(
+  new URL("../src/pages/NewProcurement.tsx", import.meta.url),
+  "utf8",
+);
+
+test("New Procurement persists the selected vessel class separately from cargo type", () => {
+  assert.match(
+    procurementSource,
+    /vessel_class:\s*vesselClassFromCargoType\(cargoType\)/,
+  );
+});
 
 test("port loader enforces the selected country after primary API responses", () => {
   assert.match(
