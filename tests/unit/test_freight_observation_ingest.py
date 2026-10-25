@@ -262,3 +262,48 @@ def test_ingestion_provenance_fields_are_readable_but_not_required_on_create():
     assert response.retrieved_at is not None
     assert response.ingested_at is not None
     assert response.metadata == {"schema_version": "1"}
+
+
+def test_parse_csv_rejects_reusing_source_record_id_for_another_route(tmp_path):
+    path = write_csv(
+        tmp_path,
+        [
+            row(),
+            row(destination_unlocode="INXXX", observed_at="2026-10-21T12:00:00Z"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate source_record_id"):
+        parse_csv(path)
+
+
+def test_parse_csv_rejects_retrieval_timestamp_before_observation(tmp_path):
+    path = write_csv(
+        tmp_path,
+        [row(retrieved_at="2026-10-19T12:00:00Z")],
+    )
+
+    with pytest.raises(ValueError, match="retrieved_at cannot precede observed_at"):
+        parse_csv(path)
+
+
+def test_prepare_insert_plan_rejects_source_id_reused_for_another_route():
+    payload = {
+        "origin_location_id": "origin",
+        "destination_location_id": "destination",
+        "vessel_class": "Panamax",
+        "market_type": "DRY_BULK_FREIGHT",
+        "metric": "freight_rate",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "source": "Licensed Freight Provider",
+        "source_record_id": "quote-123",
+        "value": 29.75,
+        "unit": "USD/MT",
+        "currency": "USD",
+        "source_reference": "https://provider.example/quote/quote-123",
+        "provenance": "REAL",
+    }
+
+    changed_route = dict(payload, destination_location_id="different-destination")
+    with pytest.raises(ValueError, match="Do not overwrite historical observations silently"):
+        prepare_insert_plan([changed_route], [payload])
