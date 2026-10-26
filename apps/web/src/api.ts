@@ -1,4 +1,4 @@
-import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_FORECAST, REFERENCE_MARKET_OBSERVATIONS, REFERENCE_PORTS } from "./data/referenceData";
+import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_PORTS } from "./data/referenceData";
 import { isUuid, isValidUnlocode, normalizeCountryCode } from "./utils/procurementValidation";
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
@@ -172,8 +172,13 @@ export async function listCargo(): Promise<CargoRequirement[]> {
 export async function createCargo(payload: { cargo_type: string; vessel_class?: string | null; material: string; quantity_mt: number; origin_location_id: string; destination_location_id: string; earliest_delivery: string; latest_delivery: string; priority: string; }): Promise<CargoRequirement> { return request<CargoRequirement>("/api/v1/cargo", { method: "POST", body: JSON.stringify({ ...payload, provenance: "USER_PROVIDED", source: "CHARTERPULSE_WEB", source_reference: "NEW_PROCUREMENT" }) }); }
 export async function listVessels(): Promise<Vessel[]> { return unwrapList(await request<ListEnvelope<Vessel>>("/api/v1/vessels?limit=500")); }
 export async function listMarketObservations(): Promise<MarketObservation[]> {
-  try { const primary = unwrapList(await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500")); return primary.length ? [...primary, ...REFERENCE_MARKET_OBSERVATIONS] : REFERENCE_MARKET_OBSERVATIONS; } catch { return REFERENCE_MARKET_OBSERVATIONS; }
+  // Only return API observations. Cached reference values are rendered separately
+  // as explicit PUBLIC_PROXY benchmarks and never masquerade as live observations.
+  return unwrapList(
+    await request<ListEnvelope<MarketObservation>>("/api/v1/market/observations?limit=500"),
+  );
 }
+
 export async function listFreightForecasts(
   originLocationId?: string,
   destinationLocationId?: string,
