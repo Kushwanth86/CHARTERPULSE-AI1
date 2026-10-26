@@ -97,6 +97,19 @@ class ForecastService:
             if source_provenance not in ALLOWED_SOURCE_PROVENANCES:
                 continue
 
+            row_origin = str(row.get("origin_location_id") or "").strip()
+            row_destination = str(row.get("destination_location_id") or "").strip()
+            if route_scoped:
+                if (
+                    row_origin != str(payload.origin_location_id)
+                    or row_destination != str(payload.destination_location_id)
+                ):
+                    continue
+            elif row_origin or row_destination:
+                # Do not blend observations from unrelated routes into an
+                # aggregate/class-level market series.
+                continue
+
             if str(row.get("unit") or "").strip().upper().replace(" ", "") != (
                 str(payload.unit or "").strip().upper().replace(" ", "")
             ):
