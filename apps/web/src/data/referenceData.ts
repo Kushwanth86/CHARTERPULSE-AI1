@@ -85,7 +85,7 @@ export const REFERENCE_CARGO_TYPES = [
 
 export const REFERENCE_FORECAST: FreightForecast = {
   id: "frontend-reference-freight-2026-09", origin_location_id: "ref-au-phr", destination_location_id: "ref-in-vtz", vessel_class: "Panamax",
-  p10: 30.4, p50: 32.2, p90: 34.6, baseline: 32.2, model_name: "frontend_reference_curve", model_version: "1.0",
+  p10: 30.4, p50: 32.2, p90: 34.6, unit: "USD/MT", baseline: 32.2, model_name: "frontend_reference_curve", model_version: "1.0",
   mae: 1.8, rmse: 2.1, smape: 5.9, interval_coverage: null, confidence: 0.62, provenance: "PUBLIC_PROXY", generated_at: "2026-09-10T00:00:00Z",
 };
 
