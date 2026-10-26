@@ -59,6 +59,7 @@ def test_evaluate_decision_returns_workflow_snapshots(monkeypatch):
         "/api/v1/decision/evaluate",
         json={
             "forecast_id": str(forecast_id),
+            "cargo_requirement_id": str(uuid4()),
             "cargo_quantity_mt": 70000,
         },
     )
