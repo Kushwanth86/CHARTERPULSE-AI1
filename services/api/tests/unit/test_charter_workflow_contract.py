@@ -69,6 +69,7 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
                 "observation_count": 12,
                 "distinct_observation_dates": 12,
                 "source_provenances": ["REAL"],
+                "source_labels": ["Verified test provider"],
             },
         },
     )
