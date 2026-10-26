@@ -35,6 +35,7 @@ def valid_forecast(**overrides):
             "observation_count": 12,
             "distinct_observation_dates": 12,
             "source_provenances": ["REAL"],
+            "source_labels": ["Verified test provider"],
         },
     }
     forecast.update(overrides)
@@ -88,7 +89,7 @@ def test_decision_rejects_legacy_static_forecast(monkeypatch):
     [
         ({"unit": "USD_per_40ft_container"}, "only supports freight rates in USD/MT"),
         ({"p10": 40.0, "p50": 30.0, "p90": 50.0}, "ordered P10"),
-        ({"metadata": {"route_scoped": False}}, "unscoped forecast"),
+        ({"metadata": {**valid_forecast()["metadata"], "route_scoped": False}}, "unscoped forecast"),
         ({"origin_location_id": None}, "exact, distinct origin"),
     ],
 )
