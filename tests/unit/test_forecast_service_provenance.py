@@ -3,20 +3,16 @@ from services.api.app.schemas.forecasts import FreightForecastRequest
 from services.api.app.services import forecast_service
 
 
-def test_reference_forecast_preserves_input_provenance(monkeypatch):
+def test_reference_forecast_is_not_created_without_market_observations(monkeypatch):
     class EmptyMarketRepository:
         def list(self, **kwargs):
             return []
 
-    class RecordingForecastRepository:
-        def __init__(self):
-            self.payload = None
-
+    class ForbiddenForecastRepository:
         def create(self, payload):
-            self.payload = payload
-            return payload
-
-    repository = RecordingForecastRepository()
+            raise AssertionError(
+                "A forecast must not be stored without eligible market observations."
+            )
 
     monkeypatch.setattr(
         forecast_service,
@@ -26,24 +22,16 @@ def test_reference_forecast_preserves_input_provenance(monkeypatch):
     monkeypatch.setattr(
         forecast_service,
         "ForecastRepository",
-        lambda: repository,
+        ForbiddenForecastRepository,
     )
 
     service = forecast_service.ForecastService()
-    service.generate(FreightForecastRequest())
-
-    # The record is a forecast, while metadata identifies its input source.
-    assert repository.payload["provenance"] == "FORECAST"
-    assert (
-        repository.payload["metadata"]["input_provenance"]
-        == "SIMULATED_REFERENCE"
-    )
-
-    # The restored implementation does not add this metadata field.
-    assert (
-        "route_specific_observations"
-        not in repository.payload["metadata"]
-    )
+    try:
+        service.generate(FreightForecastRequest())
+    except ValueError as exc:
+        assert "No verified market observations match" in str(exc)
+    else:
+        raise AssertionError("Expected a forecast request without observations to fail closed.")
 
 def test_scoped_forecast_does_not_fall_back_to_unmatched_market_data(monkeypatch):
     class EmptyScopedMarketRepository:
