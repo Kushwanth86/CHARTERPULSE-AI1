@@ -1,11 +1,18 @@
-﻿
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from services.api.app.repositories.supabase_client import (
     get_supabase_admin_client,
+)
+from services.api.app.services.forecast_evidence import (
+    assert_cargo_matches_forecast,
+    assert_decision_eligible_forecast,
 )
 from risk.risk_engine import simulate_freight_risk
 
@@ -13,11 +20,11 @@ from risk.risk_engine import simulate_freight_risk
 class DecisionRequest(BaseModel):
     forecast_id: UUID
     cargo_requirement_id: UUID | None = None
-    cargo_quantity_mt: float = Field(gt=0)
+    cargo_quantity_mt: float = Field(gt=0, allow_inf_nan=False)
     wait_days: int = Field(default=7, ge=1, le=365)
     simulations: int = Field(default=5000, ge=100, le=100000)
     seed: int = 42
-    currency: str = "USD"
+    currency: str = Field(default="USD", pattern="^USD$")
 
 
 class DecisionResponse(BaseModel):
@@ -59,8 +66,26 @@ def _get_forecast(forecast_id: UUID) -> dict:
     )
 
     if not response.data:
+        raise ValueError(f"Forecast {forecast_id} was not found.")
+
+    return response.data[0]
+
+
+def _get_cargo_requirement(cargo_requirement_id: UUID) -> dict:
+    client = get_supabase_admin_client()
+    response = (
+        client.table("cargo_requirements")
+        .select(
+            "id,quantity_mt,origin_location_id,destination_location_id,vessel_class"
+        )
+        .eq("id", str(cargo_requirement_id))
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
         raise ValueError(
-            f"Forecast {forecast_id} was not found."
+            f"Cargo requirement {cargo_requirement_id} was not found."
         )
 
     return response.data[0]
@@ -70,20 +95,19 @@ def evaluate_decision(
     payload: DecisionRequest,
 ) -> DecisionResponse:
     forecast = _get_forecast(payload.forecast_id)
+    assert_decision_eligible_forecast(forecast)
+
+    if payload.cargo_requirement_id:
+        cargo = _get_cargo_requirement(payload.cargo_requirement_id)
+        assert_cargo_matches_forecast(
+            cargo=cargo,
+            forecast=forecast,
+            requested_quantity_mt=payload.cargo_quantity_mt,
+        )
 
     p10_value = forecast.get("p10")
     p50_value = forecast.get("p50")
     p90_value = forecast.get("p90")
-
-    if (
-        p10_value is None
-        or p50_value is None
-        or p90_value is None
-    ):
-        raise ValueError(
-            "Decision evaluation requires P10, P50 and P90."
-        )
-
     p10 = float(p10_value)
     p50 = float(p50_value)
     p90 = float(p90_value)
@@ -103,36 +127,29 @@ def evaluate_decision(
     wait_rate = p90
     wait_cost = wait_rate * payload.cargo_quantity_mt
     difference = wait_cost - now_expected_cost
-    difference_per_mt = (
-        difference / payload.cargo_quantity_mt
+    difference_per_mt = difference / payload.cargo_quantity_mt
+
+    metadata = forecast.get("metadata") or {}
+    source_provenances = {
+        str(source).strip().upper()
+        for source in metadata.get("source_provenances", [])
+    }
+    provenance = (
+        "REAL"
+        if source_provenances == {"REAL"}
+        else "PUBLIC_PROXY"
+        if source_provenances == {"PUBLIC_PROXY"}
+        else "MIXED_SOURCE"
     )
 
-    provenance = forecast.get("provenance") or "FORECAST"
-
     rationale = [
+        f"Forecast P50 is {p50:.4f} {payload.currency}/MT.",
+        f"Forecast P90 is {p90:.4f} {payload.currency}/MT.",
+        f"Monte Carlo expected NOW freight cost is {now_expected_cost:,.2f} {payload.currency}.",
+        f"Conservative WAIT freight cost uses P90: {wait_cost:,.2f} {payload.currency}.",
+        f"Modeled WAIT minus expected NOW is {difference:,.2f} {payload.currency}.",
         (
-            f"Forecast P50 is {p50:.4f} "
-            f"{payload.currency}/MT."
-        ),
-        (
-            f"Forecast P90 is {p90:.4f} "
-            f"{payload.currency}/MT."
-        ),
-        (
-            "Monte Carlo expected NOW freight cost is "
-            f"{now_expected_cost:,.2f} {payload.currency}."
-        ),
-        (
-            "Conservative WAIT freight cost uses P90: "
-            f"{wait_cost:,.2f} {payload.currency}."
-        ),
-        (
-            "Modeled WAIT minus expected NOW is "
-            f"{difference:,.2f} {payload.currency}."
-        ),
-        (
-            "Probability of freight exceeding the current P50 "
-            f"baseline is "
+            "Probability of freight exceeding the current P50 baseline is "
             f"{risk.probability_cost_above_baseline:.2%}."
         ),
     ]
@@ -145,53 +162,36 @@ def evaluate_decision(
         "Demurrage and storage are not modeled.",
         "Vessel delay and weather risk are not modeled.",
         "Inland logistics and insurance are not modeled.",
-        (
-            "WAIT uses forecast P90 as a conservative scenario, "
-            "not an observed future market price."
-        ),
+        "WAIT uses forecast P90 as a conservative scenario, not an observed future market price.",
         f"WAIT horizon is {payload.wait_days} days.",
     ]
+    if "PUBLIC_PROXY" in source_provenances:
+        warnings.append(
+            "This forecast includes public proxy observations. Treat the output as indicative, not as a binding carrier quote."
+        )
 
     if difference > 0:
         recommendation = "CHARTER_NOW"
         rationale.append(
-            "The conservative WAIT scenario is more expensive "
-            "than the modeled expected NOW freight cost."
+            "The conservative WAIT scenario is more expensive than the modeled expected NOW freight cost."
         )
     elif difference < 0:
         recommendation = "WAIT"
         rationale.append(
-            "The conservative WAIT scenario is cheaper than "
-            "the modeled expected NOW freight cost."
+            "The conservative WAIT scenario is cheaper than the modeled expected NOW freight cost."
         )
     else:
         recommendation = "REVIEW"
-        rationale.append(
-            "The modeled NOW and WAIT freight costs are equal."
-        )
-
-    # Identified locations do not mean the route is validated.
-    has_route = bool(
-        forecast.get("origin_location_id")
-        and forecast.get("destination_location_id")
-    )
+        rationale.append("The modeled NOW and WAIT freight costs are equal.")
 
     route_snapshot = {
-        "status": "IDENTIFIED" if has_route else "PENDING",
-        "validation_status": (
-            "NOT_VALIDATED" if has_route else "PENDING"
-        ),
-        "origin_location_id": forecast.get(
-            "origin_location_id"
-        ),
-        "destination_location_id": forecast.get(
-            "destination_location_id"
-        ),
+        "status": "IDENTIFIED",
+        "validation_status": "SOURCE_MATCHED",
+        "origin_location_id": forecast.get("origin_location_id"),
+        "destination_location_id": forecast.get("destination_location_id"),
         "vessel_class": forecast.get("vessel_class"),
     }
 
-    # Ocean freight is known; delivered-cost components remain
-    # incomplete until the additional charges are calculated.
     cost_snapshot = {
         "status": "PARTIAL",
         "known_components": ["ocean_freight"],
@@ -214,16 +214,13 @@ def evaluate_decision(
         "wait_conservative_rate": wait_rate,
         "wait_conservative_cost": round(wait_cost, 2),
         "wait_cost_difference": round(difference, 2),
-        "wait_cost_difference_per_mt": round(
-            difference_per_mt, 4
-        ),
+        "wait_cost_difference_per_mt": round(difference_per_mt, 4),
     }
 
     feasibility_snapshot = {
         "status": "PENDING",
         "reason": (
-            "Vessel and port constraint inputs are not part "
-            "of the decision request."
+            "Vessel and port constraint inputs are not part of the decision request."
         ),
     }
 
@@ -240,12 +237,8 @@ def evaluate_decision(
         wait_conservative_rate=wait_rate,
         wait_conservative_cost=round(wait_cost, 2),
         wait_cost_difference=round(difference, 2),
-        wait_cost_difference_per_mt=round(
-            difference_per_mt, 4
-        ),
-        probability_now_exceeds_baseline=(
-            risk.probability_cost_above_baseline
-        ),
+        wait_cost_difference_per_mt=round(difference_per_mt, 4),
+        probability_now_exceeds_baseline=risk.probability_cost_above_baseline,
         risk_score=risk.risk_score,
         provenance=provenance,
         model_name=forecast.get("model_name"),
