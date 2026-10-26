@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listFreightForecasts, listPorts, type FreightForecast, type Port } from "../api";
 import { selectVerifiedRouteForecast } from "../utils/forecastEligibility";
+import { isUuid, isValidUnlocode } from "../utils/procurementValidation";
 
 const radians = (value: number) => value * Math.PI / 180;
 function nauticalMiles(origin: Port, destination: Port): number | null {
@@ -41,10 +42,8 @@ export default function CostCharting() {
     let cancelled = false;
     listPorts().then((rows) => {
       if (cancelled) return;
-      const usable = rows.filter((port) =>
-        typeof port.location_id === "string" &&
-        typeof port.unlocode === "string" &&
-        /^[A-Z]{2}[A-Z0-9]{3}$/.test(port.unlocode.trim().toUpperCase()),
+      const usable = rows.filter(
+        (port) => isUuid(port.location_id) && isValidUnlocode(port.unlocode),
       );
       setPorts(usable);
       setPortsError(usable.length ? "" : "No verified port records were returned by the API.");
