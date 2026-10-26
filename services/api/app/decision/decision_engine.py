@@ -16,7 +16,7 @@ from risk.risk_engine import simulate_freight_risk
 
 class DecisionRequest(BaseModel):
     forecast_id: UUID
-    cargo_requirement_id: UUID | None = None
+    cargo_requirement_id: UUID
     cargo_quantity_mt: float = Field(gt=0, allow_inf_nan=False)
     wait_days: int = Field(default=7, ge=1, le=365)
     simulations: int = Field(default=5000, ge=100, le=100000)
@@ -94,13 +94,14 @@ def evaluate_decision(
     forecast = _get_forecast(payload.forecast_id)
     assert_decision_eligible_forecast(forecast)
 
-    if payload.cargo_requirement_id:
-        cargo = _get_cargo_requirement(payload.cargo_requirement_id)
-        assert_cargo_matches_forecast(
-            cargo=cargo,
-            forecast=forecast,
-            requested_quantity_mt=payload.cargo_quantity_mt,
-        )
+    # Every decision must be bound to a persisted procurement. Never allow
+    # an unscoped caller to bypass route, vessel-class, or quantity checks.
+    cargo = _get_cargo_requirement(payload.cargo_requirement_id)
+    assert_cargo_matches_forecast(
+        cargo=cargo,
+        forecast=forecast,
+        requested_quantity_mt=payload.cargo_quantity_mt,
+    )
 
     p10_value = forecast.get("p10")
     p50_value = forecast.get("p50")
