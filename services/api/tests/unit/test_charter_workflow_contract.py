@@ -74,6 +74,18 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
         },
     )
 
+    cargo_id = uuid4()
+    monkeypatch.setattr(
+        "services.api.app.decision.decision_engine._get_cargo_requirement",
+        lambda value: {
+            "id": str(cargo_id),
+            "quantity_mt": "70000",
+            "origin_location_id": "origin-1",
+            "destination_location_id": "destination-1",
+            "vessel_class": "PANAMAX",
+        },
+    )
+
     monkeypatch.setattr(
         "services.api.app.decision.decision_engine.simulate_freight_risk",
         lambda **kwargs: Risk(),
@@ -87,6 +99,7 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     response = evaluate_decision(
         DecisionRequest(
             forecast_id=forecast_id,
+            cargo_requirement_id=cargo_id,
             cargo_quantity_mt=70_000,
         )
     )
