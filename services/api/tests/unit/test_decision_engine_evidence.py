@@ -158,6 +158,15 @@ def test_decision_request_rejects_non_finite_or_non_positive_quantity(quantity):
         request(cargo_quantity_mt=quantity)
 
 
+def test_decision_request_requires_a_persisted_cargo_requirement_id():
+    values = {
+        "forecast_id": FORECAST_ID,
+        "cargo_quantity_mt": 12500.5,
+    }
+    with pytest.raises(ValidationError):
+        DecisionRequest(**values)
+
+
 def test_decision_request_rejects_non_usd_currency_until_fx_is_modeled():
     with pytest.raises(ValidationError):
         request(currency="EUR")
