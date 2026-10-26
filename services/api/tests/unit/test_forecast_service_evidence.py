@@ -198,6 +198,53 @@ def test_partial_route_request_cannot_generate_unscoped_forecast():
         service.generate(route_request(destination_location_id=None))
 
 
+def test_observations_are_sorted_chronologically_before_model_and_currency_mismatches_are_excluded():
+    rows = [
+        observation("2026-10-22T00:00:00+00:00", 22.0),
+        observation("2026-10-20T12:00:00", 20.0),
+        observation("2026-10-21T00:00:00+00:00", 21.0),
+        observation("2026-10-23T00:00:00+00:00", 900.0, unit="USD/MT", provenance="REAL"),
+        {
+            **observation("2026-10-24T00:00:00+00:00", 901.0),
+            "currency": "EUR",
+        },
+    ]
+    rows[3]["origin_location_id"] = "different-route-origin"
+    service = service_with_rows(rows)
+
+    class CapturingEngine:
+        seen = []
+
+        def forecast(self, observations, horizon_days):
+            self.seen = [row["observed_at"] for row in observations]
+            return {
+                "p10": 19.0,
+                "p50": 21.0,
+                "p90": 23.0,
+                "baseline_value": 21.0,
+                "model_name": "test-model",
+                "model_version": "1",
+                "confidence": 0.5,
+                "provenance": "FORECAST",
+                "generated_at": "2026-10-26T00:00:00+00:00",
+                "metadata": {"observation_count": len(observations)},
+            }
+
+    engine = CapturingEngine()
+    service.engine = engine
+
+    result = service.generate(route_request())
+
+    parsed_dates = [
+        datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+        for value in engine.seen
+    ]
+    assert parsed_dates == sorted(parsed_dates)
+    assert len(engine.seen) == 3
+    assert result["metadata"]["distinct_observation_dates"] == 3
+    assert result["metadata"]["source_labels"] == ["TEST_SOURCE"]
+
+
 def test_forecast_listing_excludes_legacy_proxy_reference_rows():
     legacy = {
         "id": "legacy-forecast",
