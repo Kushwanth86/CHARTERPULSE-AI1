@@ -716,6 +716,7 @@ test("Cost & Chartering does not calculate freight from hardcoded fallback value
     "utf8",
   );
   assert.match(costSource, /selectVerifiedRouteForecast/);
+  assert.match(costSource, /isUuid\(port\.location_id\) && isValidUnlocode\(port\.unlocode\)/);
   assert.doesNotMatch(costSource, /useState\(70000\)/);
   assert.doesNotMatch(costSource, /\?\? 32\.2/);
   assert.doesNotMatch(costSource, /REFERENCE_PORT_CHARGES|REFERENCE_CANAL_DUES|REFERENCE_DEMURRAGE/);
