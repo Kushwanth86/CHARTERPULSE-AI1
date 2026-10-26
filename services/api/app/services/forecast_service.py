@@ -117,8 +117,9 @@ class ForecastService:
         if not observations:
             if saw_simulated_observation:
                 raise ValueError(
-                    "Only simulated test data matched the requested market series. "
-                    "Simulated observations are excluded from freight forecasts."
+                    "No eligible non-simulated market observations matched: only simulated test data "
+                    "matched the requested market series. Simulated observations are excluded "
+                    "from freight forecasts."
                 )
             raise ValueError(
                 "No verified market observations match this metric, route or vessel class, and unit. "
