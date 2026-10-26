@@ -18,9 +18,15 @@ class MarketService:
         payload: MarketObservationCreate,
     ) -> dict:
 
-        return self.repository.create(
-            payload.model_dump(mode="json")
-        )
+        data = payload.model_dump(mode="json")
+
+        # This endpoint is caller-facing, not a trusted provider ingestion
+        # boundary. Never accept REAL/PUBLIC_PROXY as proof merely because a
+        # caller supplied that string. Trusted provider adapters should write
+        # through a server-side ingestion path with independently established
+        # source provenance.
+        data["provenance"] = "USER_PROVIDED"
+        return self.repository.create(data)
 
     def list(
         self,
