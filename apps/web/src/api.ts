@@ -2,9 +2,6 @@ import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_PORTS } from "./da
 import { isUuid, isValidUnlocode, normalizeCountryCode } from "./utils/procurementValidation";
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
-export const TEST_CARGO_ID = "ca16e396-bacf-49b3-a06f-c4b9373dd26b";
-export const TEST_FORECAST_ID = "6e7e8284-9b73-49b1-9767-30f536a7911a";
-
 
 export interface DecisionResponse { decision_run_id: string | null; decision_status: string; recommendation: string; cargo_quantity_mt: number; currency: string; forecast_p10: number; forecast_p50: number; forecast_p90: number; now_expected_freight_cost: number; now_p90_freight_cost: number; wait_conservative_rate: number; wait_conservative_cost: number; wait_cost_difference: number; wait_cost_difference_per_mt: number; probability_now_exceeds_baseline: number; risk_score: number; provenance: string; model_name: string | null; forecast_id: string; rationale: string[]; warnings: string[]; generated_at: string; }
 export interface HumanDecisionResponse { id: string; decision_run_id: string; action: string; modified_parameters: Record<string, unknown>; reason: string | null; decided_at: string; actor_reference: string | null; provenance: string; }
@@ -207,7 +204,7 @@ export async function listFreightForecasts(
   }
 }
 export async function evaluateFeasibility(payload: { cargo_requirement_id: string; vessel_id: string; origin_port_id: string; destination_port_id: string; }): Promise<FeasibilityResponse> { return request<FeasibilityResponse>("/api/v1/feasibility", { method: "POST", body: JSON.stringify(payload) }); }
-export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string = TEST_CARGO_ID, forecastId: string = TEST_FORECAST_ID): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }
+export async function evaluateDecision(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string, forecastId: string): Promise<DecisionResponse> { return request<DecisionResponse>("/api/v1/decision/evaluate", { method: "POST", body: JSON.stringify({ forecast_id: forecastId, cargo_requirement_id: cargoRequirementId, cargo_quantity_mt: cargoQuantityMt, wait_days: waitDays, simulations: 5000, seed: 42, currency: "USD" }) }); }
 export async function listHumanDecisions(limit = 100): Promise<HumanDecisionResponse[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   return unwrapList(await request<ListEnvelope<HumanDecisionResponse>>(`/api/v1/decisions/human?${params.toString()}`));
