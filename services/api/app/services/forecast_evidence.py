@@ -67,6 +67,14 @@ def decision_forecast_error(forecast: dict[str, Any]) -> str | None:
     ):
         return "At least three observations from distinct dates are required."
 
+    source_labels = metadata.get("source_labels")
+    if (
+        not isinstance(source_labels, list)
+        or not source_labels
+        or not all(isinstance(label, str) and label.strip() for label in source_labels)
+    ):
+        return "Traceable source labels are missing from the forecast evidence."
+
     source_provenances = metadata.get("source_provenances")
     if not isinstance(source_provenances, list) or not source_provenances:
         return "Source provenance is missing from the forecast evidence."
