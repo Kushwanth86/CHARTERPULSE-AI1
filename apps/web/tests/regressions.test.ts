@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createCargo, listPorts } from "../src/api";
+import { isEvidenceBackedForecast, selectVerifiedRouteForecast } from "../src/utils/forecastEligibility";
 import {
   isUuid,
   isValidUnlocode,
@@ -616,4 +617,100 @@ test("deterministic mutation sweep preserves quantity validation invariants", ()
   for (const quantity of invalidQuantities) {
     assert.notEqual(validate({ quantity }), null, "expected invalid quantity " + quantity);
   }
+});
+
+
+const forecastOrigin = "00000000-0000-4000-8000-000000000001";
+const forecastDestination = "00000000-0000-4000-8000-000000000002";
+
+function validEvidenceForecast(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "forecast-evidence-valid",
+    origin_location_id: forecastOrigin,
+    destination_location_id: forecastDestination,
+    vessel_class: "Panamax",
+    p10: 28,
+    p50: 31,
+    p90: 35,
+    unit: "USD/MT",
+    provenance: "FORECAST",
+    generated_at: "2026-10-26T10:00:00Z",
+    metadata: {
+      route_scoped: true,
+      input_provenance: "MARKET_OBSERVATION",
+      observation_count: 12,
+      distinct_observation_dates: 12,
+      source_provenances: ["REAL"],
+    },
+    ...overrides,
+  };
+}
+
+test("forecast eligibility rejects legacy static, simulated, unscoped, and malformed forecasts", () => {
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast()), true);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ provenance: "PUBLIC_PROXY_REFERENCE" })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ provenance: "SIMULATED" })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ unit: "USD_per_40ft_container" })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ p10: Number.NaN })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ p10: 32, p50: 31, p90: 35 })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({
+    metadata: {
+      route_scoped: true,
+      input_provenance: "MARKET_OBSERVATION",
+      observation_count: 2,
+      distinct_observation_dates: 2,
+      source_provenances: ["REAL"],
+    },
+  })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({
+    metadata: {
+      route_scoped: true,
+      input_provenance: "MARKET_OBSERVATION",
+      observation_count: 12,
+      distinct_observation_dates: 12,
+      source_provenances: ["SIMULATED"],
+    },
+  })), false);
+});
+
+test("forecast selector requires exact route and vessel class; it does not wildcard missing class", () => {
+  const valid = validEvidenceForecast({ id: "valid-older", generated_at: "2026-10-25T10:00:00Z" });
+  const newerSameRoute = validEvidenceForecast({ id: "valid-newer", generated_at: "2026-10-26T12:00:00Z" });
+  const wrongRoute = validEvidenceForecast({
+    id: "wrong-route",
+    origin_location_id: "00000000-0000-4000-8000-000000000003",
+    generated_at: "2026-10-26T15:00:00Z",
+  });
+  const wrongClass = validEvidenceForecast({ id: "wrong-class", vessel_class: "Capesize", generated_at: "2026-10-27T10:00:00Z" });
+  const legacyStatic = validEvidenceForecast({ id: "legacy-static", provenance: "PUBLIC_PROXY_REFERENCE", generated_at: "2026-10-28T10:00:00Z" });
+
+  const selected = selectVerifiedRouteForecast(
+    [valid, wrongRoute, wrongClass, legacyStatic, newerSameRoute] as never[],
+    {
+      originLocationId: forecastOrigin,
+      destinationLocationId: forecastDestination,
+      vesselClass: "PANAMAX",
+    },
+  );
+  assert.equal(selected?.id, "valid-newer");
+  assert.equal(selectVerifiedRouteForecast([valid] as never[], {
+    originLocationId: forecastOrigin,
+    destinationLocationId: forecastDestination,
+    vesselClass: null,
+  }), null);
+  assert.equal(selectVerifiedRouteForecast([valid] as never[], {
+    originLocationId: forecastOrigin,
+    destinationLocationId: forecastOrigin,
+    vesselClass: "Panamax",
+  }), null);
+});
+
+test("market API observations are not silently merged with local static reference rows", () => {
+  assert.doesNotMatch(apiSource, /REFERENCE_MARKET_OBSERVATIONS/);
+  assert.match(apiSource, /export async function listMarketObservations\(\): Promise<MarketObservation\[]> \{\s*\/\/ Only return API observations/);
+});
+
+test("Decision Room uses evidence-checked route forecast selection", () => {
+  assert.match(appSource, /selectVerifiedRouteForecast/);
+  assert.doesNotMatch(appSource, /function selectRouteForecast\(/);
 });
