@@ -710,6 +710,18 @@ test("market API observations are not silently merged with local static referenc
   assert.match(apiSource, /export async function listMarketObservations\(\): Promise<MarketObservation\[]> \{\s*\/\/ Only return API observations/);
 });
 
+test("Cost & Chartering does not calculate freight from hardcoded fallback values", () => {
+  const costSource = readFileSync(
+    new URL("../src/pages/CostCharting.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(costSource, /selectVerifiedRouteForecast/);
+  assert.doesNotMatch(costSource, /useState\(70000\)/);
+  assert.doesNotMatch(costSource, /\?\? 32\.2/);
+  assert.doesNotMatch(costSource, /REFERENCE_PORT_CHARGES|REFERENCE_CANAL_DUES|REFERENCE_DEMURRAGE/);
+  assert.match(costSource, /freight-only estimate/);
+});
+
 test("decision API requires explicit saved cargo and forecast identifiers", () => {
   assert.doesNotMatch(apiSource, /TEST_CARGO_ID|TEST_FORECAST_ID/);
   assert.match(
