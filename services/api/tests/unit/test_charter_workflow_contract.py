@@ -56,11 +56,20 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
             "p10": 20.0,
             "p50": 25.0,
             "p90": 30.0,
+            "unit": "USD/MT",
             "origin_location_id": "origin-1",
             "destination_location_id": "destination-1",
             "vessel_class": "PANAMAX",
             "provenance": "FORECAST",
             "model_name": "robust_recency_trend_baseline",
+            "generated_at": "2026-10-26T10:00:00+00:00",
+            "metadata": {
+                "route_scoped": True,
+                "input_provenance": "MARKET_OBSERVATION",
+                "observation_count": 12,
+                "distinct_observation_dates": 12,
+                "source_provenances": ["REAL"],
+            },
         },
     )
 
@@ -81,11 +90,10 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
         )
     )
 
-    # The restored decision engine identifies the route but does not
-    # claim that the route has been validated.
+    # The test forecast has explicit source and route evidence.
     assert response.route_snapshot == {
         "status": "IDENTIFIED",
-        "validation_status": "NOT_VALIDATED",
+        "validation_status": "SOURCE_MATCHED",
         "origin_location_id": "origin-1",
         "destination_location_id": "destination-1",
         "vessel_class": "PANAMAX",
