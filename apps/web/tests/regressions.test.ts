@@ -641,6 +641,7 @@ function validEvidenceForecast(overrides: Partial<ForecastCandidate> = {}): Fore
       observation_count: 12,
       distinct_observation_dates: 12,
       source_provenances: ["REAL"],
+      source_labels: ["Verified test provider"],
     },
     ...overrides,
   };
