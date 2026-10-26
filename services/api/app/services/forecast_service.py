@@ -46,6 +46,28 @@ def _finite_positive(value: Any) -> bool:
     return isfinite(parsed) and parsed > 0
 
 
+def _validate_model_quantiles(result: dict[str, Any]) -> None:
+    try:
+        p10 = float(result["p10"])
+        p50 = float(result["p50"])
+        p90 = float(result["p90"])
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(
+            "Forecast model returned missing or non-numeric quantiles; no forecast was stored."
+        ) from exc
+
+    if (
+        not all(isfinite(value) for value in (p10, p50, p90))
+        or p10 < 0
+        or p50 <= 0
+        or p90 <= 0
+        or not (p10 <= p50 <= p90)
+    ):
+        raise ValueError(
+            "Forecast model returned non-finite or unordered quantiles; no forecast was stored."
+        )
+
+
 class ForecastService:
     def __init__(self):
         self.market_repository = MarketRepository()
@@ -172,6 +194,7 @@ class ForecastService:
             observations=observations,
             horizon_days=payload.forecast_horizon_days,
         )
+        _validate_model_quantiles(result)
 
         metadata = dict(result.get("metadata") or {})
         metadata.update(
