@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any
 from uuid import UUID
@@ -29,9 +29,13 @@ def _parse_observation_time(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _finite_positive(value: Any) -> bool:
@@ -98,6 +102,11 @@ class ForecastService:
             ):
                 continue
 
+            row_currency = str(row.get("currency") or "").strip().upper()
+            requested_currency = str(payload.currency or "").strip().upper()
+            if row_currency and requested_currency and row_currency != requested_currency:
+                continue
+
             if not _finite_positive(row.get("value")):
                 continue
 
@@ -125,6 +134,14 @@ class ForecastService:
                 "No verified market observations match this metric, route or vessel class, and unit. "
                 "Static reference values are not substituted."
             )
+
+        # Repositories fetch the newest N rows for a bounded query, but both
+        # the trend engine and chronological holdout backtest must see a
+        # stable oldest-to-newest sequence.
+        observations.sort(
+            key=lambda row: _parse_observation_time(row.get("observed_at"))
+            or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
         observed_dates = {
             _parse_observation_time(row.get("observed_at")).date().isoformat()
