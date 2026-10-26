@@ -110,6 +110,15 @@ export function isEvidenceBackedForecast(value: unknown): value is ForecastCandi
     return false;
   }
 
+  const sourceLabels = metadata.source_labels;
+  if (
+    !Array.isArray(sourceLabels) ||
+    sourceLabels.length === 0 ||
+    !sourceLabels.every((label) => typeof label === "string" && label.trim().length > 0)
+  ) {
+    return false;
+  }
+
   const sourceProvenances = metadata.source_provenances;
   if (!Array.isArray(sourceProvenances) || sourceProvenances.length === 0) {
     return false;
