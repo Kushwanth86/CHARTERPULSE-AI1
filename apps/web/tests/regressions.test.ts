@@ -651,6 +651,7 @@ test("forecast eligibility rejects legacy static, simulated, unscoped, and malfo
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast()), true);
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ provenance: "PUBLIC_PROXY_REFERENCE" })), false);
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ provenance: "SIMULATED" })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ metadata: { ...validEvidenceForecast().metadata as Record<string, unknown>, source_labels: [] } })), false);
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ unit: "USD_per_40ft_container" })), false);
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ p10: Number.NaN })), false);
   assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ p10: 32, p50: 31, p90: 35 })), false);
