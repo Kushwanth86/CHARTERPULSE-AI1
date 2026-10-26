@@ -66,7 +66,7 @@ class MarketRepository:
 
         response = (
             query
-            .order("observed_at")
+            .order("observed_at", desc=True)
             .limit(limit)
             .execute()
         )
