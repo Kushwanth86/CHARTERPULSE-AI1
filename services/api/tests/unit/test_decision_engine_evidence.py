@@ -88,7 +88,7 @@ def test_decision_rejects_legacy_static_forecast(monkeypatch):
     [
         ({"unit": "USD_per_40ft_container"}, "only supports freight rates in USD/MT"),
         ({"p10": 40.0, "p50": 30.0, "p90": 50.0}, "ordered P10"),
-        ({"metadata": {"route_scoped": False}}, "evidence metadata"),
+        ({"metadata": {"route_scoped": False}}, "unscoped forecast"),
         ({"origin_location_id": None}, "exact, distinct origin"),
     ],
 )
