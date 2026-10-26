@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createCargo, listPorts } from "../src/api";
-import { isEvidenceBackedForecast, selectVerifiedRouteForecast } from "../src/utils/forecastEligibility";
+import { isEvidenceBackedForecast, selectVerifiedRouteForecast, type ForecastCandidate } from "../src/utils/forecastEligibility";
 import {
   isUuid,
   isValidUnlocode,
@@ -623,7 +623,7 @@ test("deterministic mutation sweep preserves quantity validation invariants", ()
 const forecastOrigin = "00000000-0000-4000-8000-000000000001";
 const forecastDestination = "00000000-0000-4000-8000-000000000002";
 
-function validEvidenceForecast(overrides: Record<string, unknown> = {}) {
+function validEvidenceForecast(overrides: Partial<ForecastCandidate> = {}): ForecastCandidate {
   return {
     id: "forecast-evidence-valid",
     origin_location_id: forecastOrigin,
@@ -685,7 +685,7 @@ test("forecast selector requires exact route and vessel class; it does not wildc
   const legacyStatic = validEvidenceForecast({ id: "legacy-static", provenance: "PUBLIC_PROXY_REFERENCE", generated_at: "2026-10-28T10:00:00Z" });
 
   const selected = selectVerifiedRouteForecast(
-    [valid, wrongRoute, wrongClass, legacyStatic, newerSameRoute] as never[],
+    [valid, wrongRoute, wrongClass, legacyStatic, newerSameRoute],
     {
       originLocationId: forecastOrigin,
       destinationLocationId: forecastDestination,
@@ -693,7 +693,7 @@ test("forecast selector requires exact route and vessel class; it does not wildc
     },
   );
   assert.equal(selected?.id, "valid-newer");
-  assert.equal(selectVerifiedRouteForecast([valid] as never[], {
+  assert.equal(selectVerifiedRouteForecast([valid], {
     originLocationId: forecastOrigin,
     destinationLocationId: forecastDestination,
     vesselClass: null,
