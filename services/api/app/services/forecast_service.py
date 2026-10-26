@@ -91,7 +91,7 @@ class ForecastService:
         requested_metric = _canonical_metric(payload.metric)
         if requested_metric == "OCEAN_FREIGHT":
             raw_observations = self.market_repository.list(
-                metric=None,
+                metric=sorted(OCEAN_FREIGHT_METRICS),
                 origin_location_id=payload.origin_location_id,
                 destination_location_id=payload.destination_location_id,
                 vessel_class=payload.vessel_class,
