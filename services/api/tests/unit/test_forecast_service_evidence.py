@@ -212,6 +212,14 @@ def test_observations_are_sorted_chronologically_before_model_and_currency_misma
     rows[3]["origin_location_id"] = "different-route-origin"
     service = service_with_rows(rows)
 
+    class LeakyMarketRepository:
+        # Simulate a repository/query layer that accidentally returns a broad
+        # result set; the service itself must still enforce route identity.
+        def list(self, **kwargs):
+            return rows
+
+    service.market_repository = LeakyMarketRepository()
+
     class CapturingEngine:
         seen = []
 
@@ -243,6 +251,29 @@ def test_observations_are_sorted_chronologically_before_model_and_currency_misma
     assert len(engine.seen) == 3
     assert result["metadata"]["distinct_observation_dates"] == 3
     assert result["metadata"]["source_labels"] == ["TEST_SOURCE"]
+
+
+def test_aggregate_forecast_never_blends_route_scoped_records():
+    rows = [
+        observation("2026-10-20T00:00:00+00:00", 20.0),
+        observation("2026-10-21T00:00:00+00:00", 21.0),
+        observation("2026-10-22T00:00:00+00:00", 22.0),
+    ]
+    service = service_with_rows(rows)
+
+    class LeakyMarketRepository:
+        def list(self, **kwargs):
+            return rows
+
+    service.market_repository = LeakyMarketRepository()
+
+    with pytest.raises(ValueError, match="No verified market observations match"):
+        service.generate(route_request(
+            origin_location_id=None,
+            destination_location_id=None,
+        ))
+
+    assert service.forecast_repository.created == []
 
 
 def test_forecast_listing_excludes_legacy_proxy_reference_rows():
