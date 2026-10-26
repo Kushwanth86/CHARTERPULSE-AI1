@@ -29,6 +29,7 @@ def valid_forecast(**overrides):
             "observation_count": 12,
             "distinct_observation_dates": 12,
             "source_provenances": ["REAL"],
+            "source_labels": ["Verified test provider"],
         },
     }
     forecast.update(overrides)
@@ -77,6 +78,7 @@ def test_rejects_legacy_or_malformed_forecasts(changes, message):
         ({"source_provenances": ["SIMULATED"]}, "unknown provenance"),
         ({"source_provenances": ["USER_PROVIDED"]}, "unknown provenance"),
         ({"source_provenances": []}, "Source provenance is missing"),
+        ({"source_labels": []}, "Traceable source labels are missing"),
         ({"route_scoped": False}, "unscoped forecast"),
     ],
 )
