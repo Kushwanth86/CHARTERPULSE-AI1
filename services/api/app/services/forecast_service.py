@@ -53,9 +53,11 @@ class ForecastService:
         has_destination = payload.destination_location_id is not None
         has_vessel_class = bool(str(payload.vessel_class or "").strip())
         route_scoped = has_origin and has_destination
-        scoped_request = has_origin or has_destination or has_vessel_class
 
-        if scoped_request and not route_scoped:
+        # One endpoint alone is never a valid route. A vessel-class-only query
+        # may return an aggregate market report, but evidence metadata marks it
+        # unscoped so it cannot be selected for a procurement decision.
+        if has_origin != has_destination:
             raise ValueError(
                 "A route-specific forecast requires both origin and destination location IDs."
             )
@@ -83,8 +85,11 @@ class ForecastService:
             )
 
         observations = []
+        saw_simulated_observation = False
         for row in raw_observations:
             source_provenance = str(row.get("provenance") or "").strip().upper()
+            if source_provenance == "SIMULATED":
+                saw_simulated_observation = True
             if source_provenance not in ALLOWED_SOURCE_PROVENANCES:
                 continue
 
@@ -110,8 +115,13 @@ class ForecastService:
             observations.append(row)
 
         if not observations:
+            if saw_simulated_observation:
+                raise ValueError(
+                    "Only simulated test data matched the requested market series. "
+                    "Simulated observations are excluded from freight forecasts."
+                )
             raise ValueError(
-                "No eligible non-simulated market observations match this metric, route, vessel class, and unit. "
+                "No verified market observations match this metric, route or vessel class, and unit. "
                 "Static reference values are not substituted."
             )
 
