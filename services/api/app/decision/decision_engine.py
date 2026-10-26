@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
 from uuid import UUID
-
-from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from services.api.app.repositories.supabase_client import (
