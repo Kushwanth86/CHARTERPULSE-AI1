@@ -62,7 +62,9 @@ class FakeMarketRepository:
                 if str(row.get("vessel_class") or "").casefold()
                 == kwargs["vessel_class"].strip().casefold()
             ]
-        if kwargs.get("metric"):
+        if isinstance(kwargs.get("metric"), list):
+            rows = [row for row in rows if row.get("metric") in kwargs["metric"]]
+        elif kwargs.get("metric"):
             rows = [row for row in rows if row.get("metric") == kwargs["metric"]]
         return rows[:kwargs.get("limit", 500)]
 
@@ -159,7 +161,32 @@ def test_default_metric_alias_matches_ocean_freight_observations():
     result = service.generate(route_request(metric="freight_rate"))
 
     assert result["metadata"]["observation_count"] == 3
-    assert service.market_repository.last_query["metric"] is None
+    assert "OCEAN_FREIGHT" in service.market_repository.last_query["metric"]
+
+
+def test_non_freight_rows_cannot_crowd_freight_rows_out_of_query_limit():
+    noise = [
+        observation(
+            "2026-10-25T00:00:00+00:00",
+            100.0 + index,
+            metric="PORT_ACTIVITY_INDEX",
+        )
+        for index in range(600)
+    ]
+    freight = [
+        observation("2026-10-20T00:00:00+00:00", 20.0),
+        observation("2026-10-21T00:00:00+00:00", 21.0),
+        observation("2026-10-22T00:00:00+00:00", 22.0),
+    ]
+    service = service_with_rows(noise + freight)
+
+    result = service.generate(route_request())
+
+    assert result["metadata"]["observation_count"] == 3
+    assert all(
+        metric in service.market_repository.last_query["metric"]
+        for metric in ("OCEAN_FREIGHT", "FREIGHT_RATE", "OCEAN_FREIGHT_RATE")
+    )
 
 
 def test_no_static_fallback_for_missing_or_simulated_route_observations():
