@@ -276,6 +276,29 @@ def test_aggregate_forecast_never_blends_route_scoped_records():
     assert service.forecast_repository.created == []
 
 
+def test_forecast_service_never_persists_non_finite_model_quantiles():
+    service = service_with_rows([
+        observation("2026-10-20T00:00:00+00:00", 20.0),
+        observation("2026-10-21T00:00:00+00:00", 21.0),
+        observation("2026-10-22T00:00:00+00:00", 22.0),
+    ])
+
+    class BrokenEngine:
+        def forecast(self, observations, horizon_days):
+            return {
+                "p10": 20.0,
+                "p50": float("nan"),
+                "p90": 22.0,
+                "metadata": {"observation_count": len(observations)},
+            }
+
+    service.engine = BrokenEngine()
+    with pytest.raises(ValueError, match="non-finite or unordered quantiles"):
+        service.generate(route_request())
+
+    assert service.forecast_repository.created == []
+
+
 def test_forecast_listing_excludes_legacy_proxy_reference_rows():
     legacy = {
         "id": "legacy-forecast",
