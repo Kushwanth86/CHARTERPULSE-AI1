@@ -53,7 +53,7 @@ def test_public_proxy_forecast_is_eligible_only_with_full_route_evidence():
     ("changes", "message"),
     [
         ({"provenance": "PUBLIC_PROXY_REFERENCE"}, "proxy or demo reference"),
-        ({"metadata": {"input_provenance": "SIMULATED_REFERENCE"}}, "evidence metadata"),
+        ({"metadata": {**valid_forecast()["metadata"], "input_provenance": "SIMULATED_REFERENCE"}}, "not generated from market observations"),
         ({"unit": "USD_per_40ft_container"}, "only supports freight rates in USD/MT"),
         ({"p10": float("nan")}, "finite numeric values"),
         ({"p10": 32.0, "p50": 31.0, "p90": 35.0}, "ordered P10"),
