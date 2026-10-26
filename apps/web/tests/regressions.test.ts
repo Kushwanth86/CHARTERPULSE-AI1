@@ -710,6 +710,14 @@ test("market API observations are not silently merged with local static referenc
   assert.match(apiSource, /export async function listMarketObservations\(\): Promise<MarketObservation\[]> \{\s*\/\/ Only return API observations/);
 });
 
+test("decision API requires explicit saved cargo and forecast identifiers", () => {
+  assert.doesNotMatch(apiSource, /TEST_CARGO_ID|TEST_FORECAST_ID/);
+  assert.match(
+    apiSource,
+    /evaluateDecision\(cargoQuantityMt: number, waitDays: number, cargoRequirementId: string, forecastId: string\)/,
+  );
+});
+
 test("Decision Room uses evidence-checked route forecast selection", () => {
   assert.match(appSource, /selectVerifiedRouteForecast/);
   assert.doesNotMatch(appSource, /function selectRouteForecast\(/);
