@@ -27,7 +27,7 @@ class MarketRepository:
 
     def list(
         self,
-        metric: str | None = None,
+        metric: str | list[str] | None = None,
         origin_location_id: UUID | None = None,
         destination_location_id: UUID | None = None,
         vessel_class: str | None = None,
@@ -41,7 +41,14 @@ class MarketRepository:
             .select("*")
         )
 
-        if metric:
+        if isinstance(metric, list):
+            normalized_metrics = sorted(
+                {str(value).strip() for value in metric if str(value).strip()}
+            )
+            if not normalized_metrics:
+                return []
+            query = query.in_("metric", normalized_metrics)
+        elif metric:
             query = query.eq("metric", metric)
 
         # Keep route identifiers exact.
