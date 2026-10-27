@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 
 from services.api.app.schemas.market import MarketObservationCreate
 from services.api.app.services.market_service import MarketService
+
+
+USER_ID = UUID("00000000-0000-4000-8000-000000000123")
 
 
 def observation_payload(provenance: str = "REAL", value: float = 20.0) -> MarketObservationCreate:
@@ -43,7 +47,7 @@ def test_public_market_write_cannot_self_assert_provenance(
         lambda: repository,
     )
 
-    result = MarketService().create(observation_payload(claimed_provenance))
+    result = MarketService().create(observation_payload(claimed_provenance), USER_ID)
 
     assert repository.payload["provenance"] == "USER_PROVIDED"
     assert result["provenance"] == "USER_PROVIDED"
