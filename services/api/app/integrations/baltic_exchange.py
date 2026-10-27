@@ -251,8 +251,12 @@ def parse_feed_observations(
             if not isinstance(point, dict):
                 skipped["invalid_point"] += 1
                 continue
+            raw_value = point.get("value")
+            if isinstance(raw_value, bool):
+                skipped["invalid_point"] += 1
+                continue
             try:
-                numeric_value = float(point.get("value"))
+                numeric_value = float(raw_value)
             except (TypeError, ValueError, OverflowError):
                 skipped["invalid_point"] += 1
                 continue
