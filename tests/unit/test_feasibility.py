@@ -1,4 +1,4 @@
-﻿from uuid import uuid4
+﻿from uuid import UUID, uuid4
 
 from services.api.app.intelligence.physical_feasibility import (
     PhysicalFeasibilityEngine,
@@ -137,18 +137,21 @@ def test_feasibility_returns_review_when_required_data_is_unknown():
     assert result["provenance"] == "DERIVED"
 
 
+USER_ID = UUID("00000000-0000-4000-8000-000000000123")
+
+
 class FakeRepository:
     def __init__(self, rows=None):
         self.rows = rows or {}
         self.created = None
 
-    def get(self, identifier):
+    def get(self, identifier, user_id=None):
         return self.rows.get(str(identifier))
 
-    def list_for_vessel(self, vessel_id):
+    def list_for_vessel(self, vessel_id, user_id=None):
         return self.rows.get("compatibility", [])
 
-    def create(self, payload):
+    def create(self, payload, user_id=None):
         self.created = payload
         return payload | {"id": uuid4()}
 
@@ -233,7 +236,7 @@ def test_feasibility_service_orchestrates_dependencies_and_persists_result():
         destination_port_id=destination_port_id,
     )
 
-    result = service.evaluate(payload)
+    result = service.evaluate(payload, USER_ID)
 
     assert result["result"] == "FEASIBLE"
     assert result["provenance"] == "DERIVED"
