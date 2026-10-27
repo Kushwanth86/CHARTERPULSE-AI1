@@ -3,6 +3,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createCargo, listPorts } from "../src/api";
 import { isEvidenceBackedForecast, selectVerifiedRouteForecast, type ForecastCandidate } from "../src/utils/forecastEligibility";
+// API regression tests exercise the authenticated request helper without
+// a browser. Provide a fake short-lived session token; the backend remains
+// responsible for verifying real tokens in production.
+const testAuthStorage = new Map<string, string>([
+  ["charterpulse.auth.session.v1", JSON.stringify({
+    access_token: "test-token-not-valid-for-production",
+    refresh_token: "test-refresh-not-valid-for-production",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: { id: "00000000-0000-4000-8000-000000000123", email: "ci@example.invalid" },
+  })],
+]);
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  value: {
+    getItem: (key: string) => testAuthStorage.get(key) ?? null,
+    setItem: (key: string, value: string) => { testAuthStorage.set(key, value); },
+    removeItem: (key: string) => { testAuthStorage.delete(key); },
+  },
+});
+
 import {
   isUuid,
   isValidUnlocode,
