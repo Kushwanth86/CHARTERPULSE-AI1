@@ -20,6 +20,10 @@ export type ForecastRoute = {
 
 const ALLOWED_SOURCE_PROVENANCES = new Set(["REAL", "PUBLIC_PROXY"]);
 
+// Keep in sync with services/api/app/services/forecast_evidence.py.
+const MAX_OBSERVATION_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const MAX_FUTURE_TIMESTAMP_SKEW_MS = 60 * 60 * 1000;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -90,8 +94,19 @@ export function isEvidenceBackedForecast(value: unknown): value is ForecastCandi
     return false;
   }
 
+  const now = Date.now();
+  if (Date.parse(record.generated_at) > now + MAX_FUTURE_TIMESTAMP_SKEW_MS) {
+    return false;
+  }
+
   const metadata = asRecord(record.metadata);
   if (!metadata) return false;
+
+  if (typeof metadata.latest_observation_at !== "string") return false;
+  const latestObservationAt = Date.parse(metadata.latest_observation_at);
+  if (!Number.isFinite(latestObservationAt)) return false;
+  if (latestObservationAt > now + MAX_FUTURE_TIMESTAMP_SKEW_MS) return false;
+  if (now - latestObservationAt > MAX_OBSERVATION_AGE_MS) return false;
   if (metadata.route_scoped !== true) return false;
   if (String(metadata.input_provenance ?? "").trim().toUpperCase() !== "MARKET_OBSERVATION") {
     return false;
