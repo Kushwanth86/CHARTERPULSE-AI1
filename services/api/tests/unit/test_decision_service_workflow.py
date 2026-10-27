@@ -166,7 +166,7 @@ def test_decision_service_raises_when_persistence_returns_no_rows(monkeypatch):
 
     monkeypatch.setattr(
         "services.api.app.services.decision_service.evaluate_decision",
-        lambda payload: decision,
+        lambda payload, user_id: decision,
     )
     monkeypatch.setattr(
         "services.api.app.services.decision_service.get_supabase_admin_client",
