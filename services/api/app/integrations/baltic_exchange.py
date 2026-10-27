@@ -7,7 +7,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 from uuid import UUID
 
@@ -74,8 +74,20 @@ class BalticExchangeClient:
             raise ValueError("BALTIC_EXCHANGE_API_VERSION must look like v1.3.")
         if not re.fullmatch(r"[A-Za-z0-9_-]+", self.feed_identifier):
             raise ValueError("BALTIC_EXCHANGE_FEED_ID contains invalid characters.")
-        if not self.base_url.startswith("https://"):
-            raise ValueError("Baltic Exchange API base URL must use HTTPS.")
+        parsed_base_url = urlsplit(self.base_url)
+        if (
+            parsed_base_url.scheme != "https"
+            or parsed_base_url.hostname
+            not in {"api.balticexchange.com", "api-uat.balticexchange.com"}
+            or parsed_base_url.username
+            or parsed_base_url.password
+            or parsed_base_url.path not in {"", "/"}
+            or parsed_base_url.query
+            or parsed_base_url.fragment
+        ):
+            raise ValueError(
+                "Baltic Exchange API base URL must use an official Baltic Exchange HTTPS host."
+            )
 
     def _get_json(self, endpoint: str, params: dict[str, str] | None = None) -> Any:
         safe_endpoint = endpoint.strip("/")
