@@ -1,5 +1,4 @@
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from services.api.app.api.routes import (
     cargo,
@@ -14,13 +13,21 @@ from services.api.app.api.routes import (
     model_evaluation,
     outcomes,
     port_constraints,
-    risk,
     vessel_cargo_compatibility,
     vessels,
 )
+from services.api.app.security.current_user import get_current_user_id
+from services.api.app.security.rate_limit import enforce_user_rate_limit
 
 
-router = APIRouter()
+# All /api/v1 routes require a valid Supabase Auth session. Public, read-only
+# reference-data endpoints remain separately mounted in main.py.
+router = APIRouter(
+    dependencies=[
+        Depends(get_current_user_id),
+        Depends(enforce_user_rate_limit),
+    ]
+)
 
 router.include_router(cargo.router)
 router.include_router(market.router)
