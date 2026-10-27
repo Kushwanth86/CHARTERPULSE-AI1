@@ -30,8 +30,16 @@ type AuditEvent = { time: string; type: string; ref: string; detail: string; pro
 }
 
 const AUDIT_KEY = "charterpulse.frontend.audit.v1";
-function readAudit(): AuditEvent[] { try { return JSON.parse(localStorage.getItem(AUDIT_KEY) || "[]") as AuditEvent[]; } catch { return []; } }
-function writeAudit(event: AuditEvent) { try { localStorage.setItem(AUDIT_KEY, JSON.stringify([event, ...readAudit()].slice(0, 50))); } catch { /* optional browser storage */ } }
+function auditStorageKey(): string {
+  try {
+    const userId = sessionStorage.getItem("charterpulse.activeUserId");
+    return userId ? AUDIT_KEY + "." + userId : AUDIT_KEY + ".signed-out";
+  } catch {
+    return AUDIT_KEY + ".signed-out";
+  }
+}
+function readAudit(): AuditEvent[] { try { return JSON.parse(localStorage.getItem(auditStorageKey()) || "[]") as AuditEvent[]; } catch { return []; } }
+function writeAudit(event: AuditEvent) { try { localStorage.setItem(auditStorageKey(), JSON.stringify([event, ...readAudit()].slice(0, 50))); } catch { /* optional browser storage */ } }
 
 function CommandCenter({ procurement, decision, decisionError, onDecision, human, onHuman, navigate }: { procurement: ProcurementContext | null; decision: DecisionResponse | null; decisionError: string; onDecision: (d: DecisionResponse) => void; human: HumanDecisionResponse | null; onHuman: (d: HumanDecisionResponse) => void; navigate: (id: string) => void }) {
   const [waitDays, setWaitDays] = useState(7);
