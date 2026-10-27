@@ -642,6 +642,7 @@ function validEvidenceForecast(overrides: Partial<ForecastCandidate> = {}): Fore
       distinct_observation_dates: 12,
       source_provenances: ["REAL"],
       source_labels: ["Verified test provider"],
+      latest_observation_at: new Date().toISOString(),
     },
     ...overrides,
   };
@@ -672,6 +673,24 @@ test("forecast eligibility rejects legacy static, simulated, unscoped, and malfo
       distinct_observation_dates: 12,
       source_provenances: ["SIMULATED"],
     },
+  })), false);
+});
+
+test("forecast eligibility rejects stale and future-dated observation evidence", () => {
+  const baseMetadata = validEvidenceForecast().metadata as Record<string, unknown>;
+  const staleMetadata = {
+    ...baseMetadata,
+    latest_observation_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  const futureMetadata = {
+    ...baseMetadata,
+    latest_observation_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+  };
+
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ metadata: staleMetadata })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({ metadata: futureMetadata })), false);
+  assert.equal(isEvidenceBackedForecast(validEvidenceForecast({
+    generated_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
   })), false);
 });
 
