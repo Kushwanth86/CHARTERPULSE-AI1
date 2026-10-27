@@ -37,7 +37,7 @@ def test_public_market_write_cannot_self_assert_provenance(
     class RecordingRepository:
         payload = None
 
-        def create(self, payload):
+        def create(self, payload, user_id):
             self.payload = payload
             return payload
 
