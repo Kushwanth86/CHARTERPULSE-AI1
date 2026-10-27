@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -41,6 +41,50 @@ def valid_forecast(**overrides):
 
 def test_real_observation_forecast_is_eligible():
     assert_decision_eligible_forecast(valid_forecast())
+
+
+def test_rejects_stale_market_observation_evidence():
+    now = datetime.now(timezone.utc)
+    forecast = valid_forecast(
+        metadata={
+            **valid_forecast()["metadata"],
+            "latest_observation_at": (now - timedelta(days=15)).isoformat(),
+        }
+    )
+    assert "older than 14 days" in (decision_forecast_error(forecast) or "")
+
+
+def test_rejects_future_market_observation_and_generation_timestamps():
+    now = datetime.now(timezone.utc)
+    stale_clock_forecast = valid_forecast(
+        metadata={
+            **valid_forecast()["metadata"],
+            "latest_observation_at": (now + timedelta(hours=2)).isoformat(),
+        }
+    )
+    future_generated_forecast = valid_forecast(
+        generated_at=(now + timedelta(hours=2)).isoformat()
+    )
+
+    assert "observation timestamp is in the future" in (
+        decision_forecast_error(stale_clock_forecast) or ""
+    )
+    assert "generation timestamp is in the future" in (
+        decision_forecast_error(future_generated_forecast) or ""
+    )
+
+
+def test_rejects_forecast_without_latest_observation_timestamp():
+    forecast = valid_forecast(
+        metadata={
+            **valid_forecast()["metadata"],
+        }
+    )
+    forecast["metadata"].pop("latest_observation_at", None)
+
+    assert "observation timestamp is missing or invalid" in (
+        decision_forecast_error(forecast) or ""
+    )
 
 
 def test_public_proxy_forecast_is_eligible_only_with_full_route_evidence():
