@@ -1,4 +1,6 @@
 ﻿
+from uuid import UUID
+
 from services.api.app.decision.decision_engine import (
     DecisionRequest,
     DecisionResponse,
@@ -14,15 +16,17 @@ class DecisionService:
     def evaluate(
         self,
         payload: DecisionRequest,
+        user_id: UUID,
     ) -> DecisionResponse:
         # Calculate the decision using the existing decision engine.
-        decision = evaluate_decision(payload)
+        decision = evaluate_decision(payload, user_id)
 
         supabase = get_supabase_admin_client()
 
         # Persist the AI decision for later human review.
         # This is a freight-only estimate, not total delivered cost.
         row = {
+            "user_id": str(user_id),
             "recommendation": decision.recommendation,
             "recommendation_score": None,
             "expected_total_cost": None,
