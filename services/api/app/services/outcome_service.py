@@ -36,6 +36,7 @@ class OutcomeService:
                 raise HTTPException(status_code=404, detail="Human decision not found.")
         row = payload.model_dump(mode="json")
         row["user_id"] = str(user_id)
+        row["provenance"] = "USER_PROVIDED"
         result = client.table("decision_outcomes").insert(row).execute()
 
         if not result.data:
@@ -70,6 +71,7 @@ class FeedbackService:
         row = payload.model_dump(mode="json")
         row["user_id"] = str(user_id)
         row["actor_reference"] = str(user_id)
+        row["provenance"] = "USER_PROVIDED"
         result = client.table("decision_feedback").insert(row).execute()
 
         if not result.data:
