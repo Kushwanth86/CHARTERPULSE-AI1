@@ -17,6 +17,14 @@ class FakeQuery:
         self.filters.append(("eq", column, value))
         return self
 
+    def in_(self, column, values):
+        self.filters.append(("in", column, values))
+        return self
+
+    def or_(self, expression):
+        self.filters.append(("or", expression))
+        return self
+
     def ilike(self, column, value):
         self.filters.append(("ilike", column, value))
         return self
@@ -42,7 +50,7 @@ class FakeClient:
 def test_forecast_repository_matches_vessel_class_case_insensitively(monkeypatch):
     client = FakeClient()
     monkeypatch.setattr(
-        "services.api.app.repositories.forecast_repository.get_supabase_client",
+        "services.api.app.repositories.forecast_repository.get_supabase_admin_client",
         lambda: client,
     )
     origin_id, destination_id = uuid4(), uuid4()
