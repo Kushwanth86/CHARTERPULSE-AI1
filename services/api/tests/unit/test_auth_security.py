@@ -240,8 +240,8 @@ def test_auth_migration_drops_all_legacy_public_read_policies():
     for policy_drop in legacy_policy_drops:
         assert policy_drop in migration_sql, f"Missing legacy RLS policy removal: {policy_drop}"
 
-    assert "revoke select on table" in migration_sql
-    assert "from anon;" in migration_sql
-    assert "revoke insert, update, delete, truncate on table" in migration_sql
+    assert "revoke all privileges on table" in migration_sql
     assert "from anon, authenticated;" in migration_sql
+    assert "grant select on table" in migration_sql
+    assert "to authenticated;" in migration_sql
 
