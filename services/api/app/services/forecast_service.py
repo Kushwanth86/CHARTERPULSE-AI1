@@ -197,8 +197,16 @@ class ForecastService:
         _validate_model_quantiles(result)
 
         metadata = dict(result.get("metadata") or {})
+        latest_observation_at = _parse_observation_time(
+            observations[-1].get("observed_at")
+        )
         metadata.update(
             {
+                "latest_observation_at": (
+                    latest_observation_at.isoformat()
+                    if latest_observation_at is not None
+                    else None
+                ),
                 "input_provenance": "MARKET_OBSERVATION",
                 "source_provenances": sorted(
                     {
