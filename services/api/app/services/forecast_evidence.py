@@ -1,12 +1,30 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from math import isfinite
 from typing import Any
 
 
 ALLOWED_SOURCE_PROVENANCES = frozenset({"REAL", "PUBLIC_PROXY"})
+
+# Procurement decisions must not rely on old market rates. Keep this aligned
+# with the frontend eligibility gate; the provider update cadence may justify
+# revisiting the 14-day limit later.
+MAX_OBSERVATION_AGE = timedelta(days=14)
+MAX_FUTURE_TIMESTAMP_SKEW = timedelta(hours=1)
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _decimal(value: Any) -> Decimal | None:
@@ -93,13 +111,23 @@ def decision_forecast_error(forecast: dict[str, Any]) -> str | None:
     if p10 < 0 or p50 <= 0 or p90 <= 0 or not (p10 <= p50 <= p90):
         return "Forecast quantiles must be non-negative, finite, and ordered P10 ≤ P50 ≤ P90."
 
-    generated_at = forecast.get("generated_at")
-    if not isinstance(generated_at, str) or not generated_at.strip():
-        return "The forecast generation timestamp is missing."
-    try:
-        datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
-    except ValueError:
-        return "The forecast generation timestamp is invalid."
+    now = datetime.now(timezone.utc)
+    generated_at = _parse_timestamp(forecast.get("generated_at"))
+    if generated_at is None:
+        return "The forecast generation timestamp is missing or invalid."
+    if generated_at > now + MAX_FUTURE_TIMESTAMP_SKEW:
+        return "The forecast generation timestamp is in the future."
+
+    latest_observation_at = _parse_timestamp(metadata.get("latest_observation_at"))
+    if latest_observation_at is None:
+        return "The latest market observation timestamp is missing or invalid."
+    if latest_observation_at > now + MAX_FUTURE_TIMESTAMP_SKEW:
+        return "The latest market observation timestamp is in the future."
+    if now - latest_observation_at > MAX_OBSERVATION_AGE:
+        return (
+            "The latest market observation is older than 14 days; refresh the rate data "
+            "before making a procurement decision."
+        )
 
     return None
 
