@@ -273,7 +273,7 @@ def test_feasibility_service_rejects_missing_cargo():
     )
 
     try:
-        service.evaluate(payload)
+        service.evaluate(payload, USER_ID)
         assert False, "Expected missing cargo to raise ValueError"
     except ValueError as exc:
         assert str(exc) == "Cargo requirement not found."
