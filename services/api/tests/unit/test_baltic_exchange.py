@@ -94,6 +94,7 @@ def test_non_usd_per_metric_ton_units_are_rejected_not_converted():
         ("inf", "2026-10-20"),
         (0, "2026-10-20"),
         (-2, "2026-10-20"),
+        (True, "2026-10-20"),
         (12.0, "not-a-date"),
     ],
 )
