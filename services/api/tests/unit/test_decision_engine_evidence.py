@@ -15,6 +15,7 @@ ORIGIN = "00000000-0000-4000-8000-000000000001"
 DESTINATION = "00000000-0000-4000-8000-000000000002"
 CARGO_ID = UUID("00000000-0000-4000-8000-000000000003")
 FORECAST_ID = UUID("00000000-0000-4000-8000-000000000004")
+USER_ID = UUID("00000000-0000-4000-8000-000000000123")
 
 
 def valid_forecast(**overrides):
@@ -79,11 +80,11 @@ def test_decision_rejects_legacy_static_forecast(monkeypatch):
     monkeypatch.setattr(
         decision_engine,
         "_get_cargo_requirement",
-        lambda _cargo_id: valid_cargo(),
+        lambda _cargo_id, _user_id: valid_cargo(),
     )
 
     with pytest.raises(ValueError, match="proxy or demo reference"):
-        decision_engine.evaluate_decision(request())
+        decision_engine.evaluate_decision(request(), USER_ID)
 
 
 @pytest.mark.parametrize(
@@ -127,11 +128,11 @@ def test_decision_rejects_saved_cargo_mismatch(monkeypatch, cargo_changes, reque
     monkeypatch.setattr(
         decision_engine,
         "_get_cargo_requirement",
-        lambda _cargo_id: valid_cargo(**cargo_changes),
+        lambda _cargo_id, _user_id: valid_cargo(**cargo_changes),
     )
 
     with pytest.raises(ValueError, match=message):
-        decision_engine.evaluate_decision(request(cargo_quantity_mt=requested_quantity))
+        decision_engine.evaluate_decision(request(cargo_quantity_mt=requested_quantity), USER_ID)
 
 
 def test_decision_succeeds_for_eligible_forecast_and_exact_saved_cargo(monkeypatch):
