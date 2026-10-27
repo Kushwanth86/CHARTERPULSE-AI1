@@ -1,4 +1,5 @@
 
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from services.api.app.decision.decision_engine import (
@@ -70,6 +71,7 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
                 "distinct_observation_dates": 12,
                 "source_provenances": ["REAL"],
                 "source_labels": ["Verified test provider"],
+                "latest_observation_at": datetime.now(timezone.utc).isoformat(),
             },
         },
     )
