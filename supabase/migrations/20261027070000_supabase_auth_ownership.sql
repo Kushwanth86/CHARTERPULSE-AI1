@@ -59,6 +59,38 @@ drop policy if exists vessel_cargo_compatibility_public_read on public.vessel_ca
 drop policy if exists freight_forecasts_public_read on public.freight_forecasts;
 drop policy if exists public_read_freight_forecasts on public.freight_forecasts;
 
+-- Defense in depth: anonymous users cannot query operational data even if a
+-- legacy SELECT policy survives, and browser sessions cannot write directly.
+-- The API uses the server-only service role for data access; authenticated
+-- direct reads, where granted below, remain subject to the ownership RLS rules.
+revoke select on table
+  public.cargo_requirements,
+  public.decision_runs,
+  public.human_decisions,
+  public.decision_outcomes,
+  public.decision_feedback,
+  public.feasibility_runs,
+  public.market_observations,
+  public.freight_forecasts,
+  public.model_evaluations,
+  public.vessels,
+  public.vessel_cargo_compatibility
+from anon;
+
+revoke insert, update, delete, truncate on table
+  public.cargo_requirements,
+  public.decision_runs,
+  public.human_decisions,
+  public.decision_outcomes,
+  public.decision_feedback,
+  public.feasibility_runs,
+  public.market_observations,
+  public.freight_forecasts,
+  public.model_evaluations,
+  public.vessels,
+  public.vessel_cargo_compatibility
+from anon, authenticated;
+
 -- No direct Data API writes are granted by this migration. Writes happen only
 -- through authenticated backend routes, which set user_id from the verified JWT
 -- rather than trusting a caller-supplied owner ID.
