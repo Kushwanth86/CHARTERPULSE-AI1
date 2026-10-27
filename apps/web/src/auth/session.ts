@@ -162,14 +162,20 @@ export async function restoreSession(): Promise<AuthSession | null> {
 }
 
 export async function getAccessToken(): Promise<string> {
-  if (!isAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Ask an administrator to configure the frontend environment.");
-  }
   const current = activeSession || readStoredSession();
-  if (!current) throw new Error("Your session has expired. Sign in to continue.");
+  if (!current) {
+    if (!isAuthConfigured()) {
+      throw new Error("Supabase Auth is not configured. Ask an administrator to configure the frontend environment.");
+    }
+    throw new Error("Your session has expired. Sign in to continue.");
+  }
   if (current.expires_at > Math.floor(Date.now() / 1000) + 60) {
     activeSession = current;
     return current.access_token;
+  }
+  if (!isAuthConfigured()) {
+    saveSession(null);
+    throw new Error("Supabase Auth is not configured. Sign in again after the frontend environment is configured.");
   }
   try {
     return (await refreshSession(current)).access_token;
