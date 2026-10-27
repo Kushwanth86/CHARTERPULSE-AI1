@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException
 
 from services.api.app.schemas.human_decision import (
@@ -8,11 +10,12 @@ from services.api.app.repositories.supabase_client import get_supabase_admin_cli
 
 
 class HumanDecisionService:
-    def list_decisions(self, limit: int = 100) -> list[HumanDecisionResponse]:
+    def list_decisions(self, user_id: UUID, limit: int = 100) -> list[HumanDecisionResponse]:
         supabase = get_supabase_admin_client()
         result = (
             supabase.table("human_decisions")
             .select("id,decision_run_id,action,modified_parameters,reason,decided_at,actor_reference,provenance")
+            .eq("user_id", str(user_id))
             .order("decided_at", desc=True)
             .limit(limit)
             .execute()
@@ -22,6 +25,7 @@ class HumanDecisionService:
     def create_decision(
         self,
         payload: HumanDecisionCreate,
+        user_id: UUID,
     ) -> HumanDecisionResponse:
         supabase = get_supabase_admin_client()
 
@@ -30,6 +34,7 @@ class HumanDecisionService:
             supabase.table("decision_runs")
             .select("id")
             .eq("id", payload.decision_run_id)
+            .eq("user_id", str(user_id))
             .limit(1)
             .execute()
         )
@@ -49,10 +54,11 @@ class HumanDecisionService:
 
         row = {
             "decision_run_id": payload.decision_run_id,
+            "user_id": str(user_id),
             "action": payload.action,
             "modified_parameters": payload.modified_parameters,
             "reason": payload.reason,
-            "actor_reference": payload.actor_reference,
+            "actor_reference": str(user_id),
             "provenance": "USER_PROVIDED",
         }
 
