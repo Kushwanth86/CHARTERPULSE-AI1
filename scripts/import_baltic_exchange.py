@@ -30,6 +30,7 @@ from services.api.app.integrations.baltic_exchange import (  # noqa: E402
     load_route_mapping,
     parse_feed_observations,
 )
+from services.api.app.config.settings import get_settings  # noqa: E402
 from services.api.app.repositories.supabase_client import (  # noqa: E402
     get_supabase_admin_client,
 )
@@ -103,7 +104,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    raw_route_map = os.getenv("BALTIC_EXCHANGE_ROUTE_MAP_JSON", "").strip()
+    settings = get_settings()
+    raw_route_map = (
+        os.getenv("BALTIC_EXCHANGE_ROUTE_MAP_JSON")
+        or settings.baltic_exchange_route_map_json
+        or ""
+    ).strip()
     if not raw_route_map:
         print("Missing BALTIC_EXCHANGE_ROUTE_MAP_JSON; no data was requested or imported.", file=sys.stderr)
         return 2
@@ -117,7 +123,11 @@ def main() -> int:
         return 2
 
     default_state = Path.home() / ".charterpulse" / "baltic_exchange_sync_state.json"
-    state_path = Path(os.getenv("BALTIC_EXCHANGE_STATE_FILE", str(default_state))).expanduser()
+    state_path = Path(
+        os.getenv("BALTIC_EXCHANGE_STATE_FILE")
+        or settings.baltic_exchange_state_file
+        or str(default_state)
+    ).expanduser()
     state = _load_state(state_path)
     marker_key = _marker_key(marker)
     same_marker = (
