@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Query
+from uuid import UUID
 
+from fastapi import APIRouter, Depends, Query
+
+from services.api.app.security.current_user import get_current_user_id
 from services.api.app.schemas.human_decision import (
     HumanDecisionCreate,
     HumanDecisionResponse,
@@ -21,8 +24,9 @@ router = APIRouter(
 )
 def list_human_decisions(
     limit: int = Query(default=100, ge=1, le=500),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> list[HumanDecisionResponse]:
-    return human_decision_service.list_decisions(limit=limit)
+    return human_decision_service.list_decisions(user_id=user_id, limit=limit)
 
 
 @router.post(
@@ -31,5 +35,6 @@ def list_human_decisions(
 )
 def create_human_decision(
     payload: HumanDecisionCreate,
+    user_id: UUID = Depends(get_current_user_id),
 ) -> HumanDecisionResponse:
-    return human_decision_service.create_decision(payload)
+    return human_decision_service.create_decision(payload, user_id)
