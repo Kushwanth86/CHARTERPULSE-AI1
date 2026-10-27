@@ -79,6 +79,28 @@ def test_current_user_is_derived_from_verified_supabase_auth_response(monkeypatc
     assert calls[0][3] is False
 
 
+def test_auth_provider_server_error_returns_503(monkeypatch):
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr(current_user.httpx, "get", lambda *args, **kwargs: Response())
+    monkeypatch.setattr(
+        current_user,
+        "get_settings",
+        lambda: SimpleNamespace(
+            supabase_url="https://example-project.supabase.co",
+            supabase_publishable_key="sb_publishable_test",
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        current_user.get_current_user_id(
+            HTTPAuthorizationCredentials(scheme="Bearer", credentials="test-token")
+        )
+
+    assert exc.value.status_code == 503
+
+
 @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
 def test_invalid_or_revoked_token_is_401(monkeypatch, status_code):
     class Response:
