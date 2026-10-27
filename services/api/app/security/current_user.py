@@ -59,6 +59,12 @@ def get_current_user_id(
             detail="Authentication service is unavailable.",
         ) from None
 
+    if response.status_code >= 500:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is unavailable.",
+        )
+
     if response.status_code != status.HTTP_200_OK:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
