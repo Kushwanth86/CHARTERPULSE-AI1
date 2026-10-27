@@ -36,15 +36,33 @@ class BalticExchangeClient:
         base_url: str | None = None,
         timeout_seconds: float = 20.0,
     ) -> None:
-        self.api_key = (api_key or os.getenv("BALTIC_EXCHANGE_API_KEY") or "").strip()
+        # Settings reads the repository-root .env as well as process environment.
+        from services.api.app.config.settings import get_settings
+
+        settings = get_settings()
+        self.api_key = (
+            api_key
+            or os.getenv("BALTIC_EXCHANGE_API_KEY")
+            or settings.baltic_exchange_api_key
+            or ""
+        ).strip()
         self.feed_identifier = (
-            feed_identifier or os.getenv("BALTIC_EXCHANGE_FEED_ID") or ""
+            feed_identifier
+            or os.getenv("BALTIC_EXCHANGE_FEED_ID")
+            or settings.baltic_exchange_feed_id
+            or ""
         ).strip()
         self.api_version = (
-            api_version or os.getenv("BALTIC_EXCHANGE_API_VERSION") or DEFAULT_API_VERSION
+            api_version
+            or os.getenv("BALTIC_EXCHANGE_API_VERSION")
+            or settings.baltic_exchange_api_version
+            or DEFAULT_API_VERSION
         ).strip()
         self.base_url = (
-            base_url or os.getenv("BALTIC_EXCHANGE_API_BASE_URL") or DEFAULT_API_BASE_URL
+            base_url
+            or os.getenv("BALTIC_EXCHANGE_API_BASE_URL")
+            or settings.baltic_exchange_api_base_url
+            or DEFAULT_API_BASE_URL
         ).rstrip("/")
         self.timeout_seconds = timeout_seconds
 
