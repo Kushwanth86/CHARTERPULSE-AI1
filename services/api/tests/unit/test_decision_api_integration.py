@@ -1,13 +1,23 @@
-﻿from uuid import uuid4
+﻿from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
 from services.api.app.api.routes import decision as decision_route
 from services.api.app.decision.decision_engine import DecisionResponse
 from services.api.app.main import app
+from services.api.app.security.current_user import get_current_user_id
 
 
 client = TestClient(app)
+TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000123")
+
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def authenticated_api_test(monkeypatch):
+    monkeypatch.setitem(app.dependency_overrides, get_current_user_id, lambda: TEST_USER_ID)
 
 
 def test_evaluate_decision_returns_workflow_snapshots(monkeypatch):
@@ -52,7 +62,7 @@ def test_evaluate_decision_returns_workflow_snapshots(monkeypatch):
     monkeypatch.setattr(
         decision_route.service,
         "evaluate",
-        lambda payload: decision,
+        lambda payload, user_id: decision,
     )
 
     response = client.post(
