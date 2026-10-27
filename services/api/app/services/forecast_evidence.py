@@ -112,9 +112,12 @@ def decision_forecast_error(forecast: dict[str, Any]) -> str | None:
         return "Forecast quantiles must be non-negative, finite, and ordered P10 ≤ P50 ≤ P90."
 
     now = datetime.now(timezone.utc)
-    generated_at = _parse_timestamp(forecast.get("generated_at"))
+    generated_at_raw = forecast.get("generated_at")
+    if not isinstance(generated_at_raw, str) or not generated_at_raw.strip():
+        return "The forecast generation timestamp is missing."
+    generated_at = _parse_timestamp(generated_at_raw)
     if generated_at is None:
-        return "The forecast generation timestamp is missing or invalid."
+        return "The forecast generation timestamp is invalid."
     if generated_at > now + MAX_FUTURE_TIMESTAMP_SKEW:
         return "The forecast generation timestamp is in the future."
 
