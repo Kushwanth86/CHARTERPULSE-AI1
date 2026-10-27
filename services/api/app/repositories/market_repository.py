@@ -1,28 +1,15 @@
-﻿
 from uuid import UUID
 
-from services.api.app.repositories.supabase_client import (
-    get_supabase_admin_client,
-)
+from services.api.app.repositories.supabase_client import get_supabase_admin_client
 
 
 class MarketRepository:
-
-    def create(self, payload: dict) -> dict:
+    def create(self, payload: dict, user_id: UUID) -> dict:
         client = get_supabase_admin_client()
-
-        response = (
-            client
-            .table("market_observations")
-            .insert(payload)
-            .execute()
-        )
-
+        row = {**payload, "user_id": str(user_id)}
+        response = client.table("market_observations").insert(row).execute()
         if not response.data:
-            raise RuntimeError(
-                "Failed to create market observation."
-            )
-
+            raise RuntimeError("Failed to create market observation.")
         return response.data[0]
 
     def list(
@@ -32,14 +19,10 @@ class MarketRepository:
         destination_location_id: UUID | None = None,
         vessel_class: str | None = None,
         limit: int = 500,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         client = get_supabase_admin_client()
-
-        query = (
-            client
-            .table("market_observations")
-            .select("*")
-        )
+        query = client.table("market_observations").select("*")
 
         if isinstance(metric, list):
             normalized_metrics = sorted(
@@ -51,31 +34,26 @@ class MarketRepository:
         elif metric:
             query = query.eq("metric", metric)
 
-        # Keep route identifiers exact.
         if origin_location_id:
-            query = query.eq(
-                "origin_location_id",
-                str(origin_location_id),
-            )
-
+            query = query.eq("origin_location_id", str(origin_location_id))
         if destination_location_id:
-            query = query.eq(
-                "destination_location_id",
-                str(destination_location_id),
-            )
-
-        # Match vessel class case-insensitively.
+            query = query.eq("destination_location_id", str(destination_location_id))
         if vessel_class:
-            query = query.ilike(
-                "vessel_class",
-                vessel_class.strip(),
+            query = query.ilike("vessel_class", vessel_class.strip())
+
+        # Trusted provider rows can be shared across users; caller-submitted
+        # rows are visible only to their verified owner. Never return legacy
+        # USER_PROVIDED rows with no owner.
+        if user_id is None:
+            query = query.in_("provenance", ["REAL", "PUBLIC_PROXY"])
+        else:
+            query = query.or_(
+                f"provenance.in.(REAL,PUBLIC_PROXY),and(provenance.eq.USER_PROVIDED,user_id.eq.{user_id})"
             )
 
         response = (
-            query
-            .order("observed_at", desc=True)
+            query.order("observed_at", desc=True)
             .limit(limit)
             .execute()
         )
-
         return response.data or []
