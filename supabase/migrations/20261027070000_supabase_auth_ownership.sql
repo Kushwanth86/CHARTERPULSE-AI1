@@ -53,9 +53,11 @@ drop policy if exists public_read_decision_feedback on public.decision_feedback;
 drop policy if exists feasibility_runs_public_read on public.feasibility_runs;
 drop policy if exists public_read_model_evaluations on public.model_evaluations;
 drop policy if exists market_observations_public_read on public.market_observations;
+drop policy if exists public_read_market_observations on public.market_observations;
 drop policy if exists vessels_public_read on public.vessels;
 drop policy if exists vessel_cargo_compatibility_public_read on public.vessel_cargo_compatibility;
 drop policy if exists freight_forecasts_public_read on public.freight_forecasts;
+drop policy if exists public_read_freight_forecasts on public.freight_forecasts;
 
 -- No direct Data API writes are granted by this migration. Writes happen only
 -- through authenticated backend routes, which set user_id from the verified JWT
