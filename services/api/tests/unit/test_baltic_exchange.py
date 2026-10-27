@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import timezone
 from urllib.error import HTTPError
 from uuid import UUID
 
@@ -205,6 +204,15 @@ def test_unauthorized_error_does_not_leak_api_key(monkeypatch):
     assert "API key" in str(exc.value)
     assert "this-is-a-secret" not in str(exc.value)
 
+
+
+def test_client_rejects_untrusted_base_url_before_sending_key():
+    with pytest.raises(ValueError, match="official Baltic Exchange"):
+        BalticExchangeClient(
+            api_key="test-secret",
+            feed_identifier="FDS123",
+            base_url="https://example.invalid",
+        )
 
 def test_feed_data_adds_valid_inclusive_date_parameters(monkeypatch):
     seen = []
