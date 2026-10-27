@@ -1,4 +1,5 @@
 import { REFERENCE_CARGO_ROWS, REFERENCE_COUNTRIES, REFERENCE_PORTS } from "./data/referenceData";
+import { getAccessToken } from "./auth/session";
 import { isUuid, isValidUnlocode, normalizeCountryCode } from "./utils/procurementValidation";
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "https://charterpulse-ai1.onrender.com";
 
@@ -37,9 +38,13 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
     const signal = options?.signal ?? controller.signal;
 
     try {
+      const accessToken = await getAccessToken();
+      const headers = new Headers(options?.headers || {});
+      headers.set("Content-Type", "application/json");
+      headers.set("Authorization", "Bearer " + accessToken);
       const response = await fetch(`${API_BASE}${path}`, {
-        headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
         ...options,
+        headers,
         signal,
       });
 
