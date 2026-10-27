@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from services.api.app.services.forecast_evidence import (
@@ -30,6 +32,7 @@ def valid_forecast(**overrides):
             "distinct_observation_dates": 12,
             "source_provenances": ["REAL"],
             "source_labels": ["Verified test provider"],
+            "latest_observation_at": datetime.now(timezone.utc).isoformat(),
         },
     }
     forecast.update(overrides)
