@@ -22,8 +22,8 @@ type AuthResponse = {
   error?: string;
 };
 
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-const SUPABASE_PUBLISHABLE_KEY = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+const SUPABASE_URL = String(import.meta.env?.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+const SUPABASE_PUBLISHABLE_KEY = String(import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || "");
 const SESSION_KEY = "charterpulse.auth.session.v1";
 const ACTIVE_USER_KEY = "charterpulse.activeUserId";
 
