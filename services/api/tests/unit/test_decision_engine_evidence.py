@@ -147,7 +147,7 @@ def test_decision_succeeds_for_eligible_forecast_and_exact_saved_cargo(monkeypat
         lambda _cargo_id, _user_id: valid_cargo(),
     )
 
-    result = decision_engine.evaluate_decision(request())
+    result = decision_engine.evaluate_decision(request(), USER_ID)
 
     assert result.forecast_p50 == 31.0
     assert result.cargo_quantity_mt == 12500.5
