@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
@@ -36,6 +37,7 @@ def valid_forecast(**overrides):
             "distinct_observation_dates": 12,
             "source_provenances": ["REAL"],
             "source_labels": ["Verified test provider"],
+            "latest_observation_at": datetime.now(timezone.utc).isoformat(),
         },
     }
     forecast.update(overrides)
