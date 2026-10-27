@@ -10,6 +10,7 @@ class CargoService:
 
     def create(self, payload: CargoRequirementCreate, user_id: UUID) -> dict:
         data = payload.model_dump(mode="json")
+        data["provenance"] = "USER_PROVIDED"
         return self.repository.create(data, user_id)
 
     def get(self, cargo_id: UUID, user_id: UUID) -> dict | None:
