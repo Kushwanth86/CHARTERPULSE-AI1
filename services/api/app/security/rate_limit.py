@@ -6,7 +6,9 @@ import time
 from collections import defaultdict, deque
 from uuid import UUID
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
+
+from services.api.app.security.current_user import get_current_user_id
 
 
 _WINDOW_SECONDS = 60.0
@@ -23,7 +25,10 @@ _events: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 _lock = threading.Lock()
 
 
-def enforce_user_rate_limit(request: Request, user_id: UUID) -> None:
+def enforce_user_rate_limit(
+    request: Request,
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
     """Bound request volume per authenticated user and route class.
 
     This in-process limiter is appropriate only while the service runs as one
