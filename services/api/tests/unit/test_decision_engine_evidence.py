@@ -106,7 +106,7 @@ def test_decision_rejects_ineligible_forecast_before_risk_calculation(
     )
 
     with pytest.raises(ValueError, match=message):
-        decision_engine.evaluate_decision(request())
+        decision_engine.evaluate_decision(request(), USER_ID)
 
 
 @pytest.mark.parametrize(
@@ -144,7 +144,7 @@ def test_decision_succeeds_for_eligible_forecast_and_exact_saved_cargo(monkeypat
     monkeypatch.setattr(
         decision_engine,
         "_get_cargo_requirement",
-        lambda _cargo_id: valid_cargo(),
+        lambda _cargo_id, _user_id: valid_cargo(),
     )
 
     result = decision_engine.evaluate_decision(request())
