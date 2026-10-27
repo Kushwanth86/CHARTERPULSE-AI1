@@ -68,7 +68,7 @@ def _get_forecast(forecast_id: UUID) -> dict:
     return response.data[0]
 
 
-def _get_cargo_requirement(cargo_requirement_id: UUID) -> dict:
+def _get_cargo_requirement(cargo_requirement_id: UUID, user_id: UUID) -> dict:
     client = get_supabase_admin_client()
     response = (
         client.table("cargo_requirements")
@@ -76,6 +76,7 @@ def _get_cargo_requirement(cargo_requirement_id: UUID) -> dict:
             "id,quantity_mt,origin_location_id,destination_location_id,vessel_class"
         )
         .eq("id", str(cargo_requirement_id))
+        .eq("user_id", str(user_id))
         .limit(1)
         .execute()
     )
@@ -90,13 +91,14 @@ def _get_cargo_requirement(cargo_requirement_id: UUID) -> dict:
 
 def evaluate_decision(
     payload: DecisionRequest,
+    user_id: UUID,
 ) -> DecisionResponse:
     forecast = _get_forecast(payload.forecast_id)
     assert_decision_eligible_forecast(forecast)
 
     # Every decision must be bound to a persisted procurement. Never allow
     # an unscoped caller to bypass route, vessel-class, or quantity checks.
-    cargo = _get_cargo_requirement(payload.cargo_requirement_id)
+    cargo = _get_cargo_requirement(payload.cargo_requirement_id, user_id)
     assert_cargo_matches_forecast(
         cargo=cargo,
         forecast=forecast,
