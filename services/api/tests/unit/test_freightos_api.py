@@ -1,11 +1,21 @@
 
+from uuid import UUID
+
+import pytest
 from fastapi.testclient import TestClient
 
 from services.api.app.main import app
+from services.api.app.security.current_user import get_current_user_id
 from services.api.app.api.routes.freightos import freightos_service
 
 
 client = TestClient(app)
+TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000123")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_api_test(monkeypatch):
+    monkeypatch.setitem(app.dependency_overrides, get_current_user_id, lambda: TEST_USER_ID)
 
 
 def test_freightos_estimate_endpoint_returns_estimate(monkeypatch):
