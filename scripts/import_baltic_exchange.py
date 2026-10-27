@@ -130,10 +130,14 @@ def main() -> int:
     ).expanduser()
     state = _load_state(state_path)
     marker_key = _marker_key(marker)
+    route_map_key = json.dumps(route_mapping, sort_keys=True, separators=(",", ":"))
     same_marker = (
         state.get("feed_id") == client.feed_identifier
         and state.get("api_version") == client.api_version
         and state.get("latest_data_change_key") == marker_key
+        and state.get("route_map_key") == route_map_key
+        and state.get("from_date") == args.from_date
+        and state.get("to_date") == args.to_date
     )
     if same_marker and not args.force:
         print("Baltic feed has not changed since the last successful import; no data request was made.")
@@ -175,6 +179,9 @@ def main() -> int:
             "feed_id": client.feed_identifier,
             "api_version": client.api_version,
             "latest_data_change_key": marker_key,
+            "route_map_key": route_map_key,
+            "from_date": args.from_date,
+            "to_date": args.to_date,
         },
     )
     print(
