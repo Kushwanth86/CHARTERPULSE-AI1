@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -187,3 +188,33 @@ def test_private_cargo_reads_are_filtered_by_verified_owner(monkeypatch):
     assert queries[0].table == "cargo_requirements"
     assert ("user_id", str(USER_ID)) in queries[0].filters
     assert ("user_id", str(OTHER_USER_ID)) not in queries[0].filters
+
+def test_auth_migration_drops_all_legacy_public_read_policies():
+    repository_root = Path(__file__).resolve().parents[4]
+    migration_path = (
+        repository_root
+        / "supabase"
+        / "migrations"
+        / "20261027070000_supabase_auth_ownership.sql"
+    )
+    migration_sql = " ".join(migration_path.read_text(encoding="utf-8").lower().split())
+
+    legacy_policy_drops = [
+        "drop policy if exists cargo_requirements_public_read on public.cargo_requirements",
+        "drop policy if exists decision_runs_public_read on public.decision_runs",
+        "drop policy if exists human_decisions_public_read on public.human_decisions",
+        "drop policy if exists public_read_decision_outcomes on public.decision_outcomes",
+        "drop policy if exists public_read_decision_feedback on public.decision_feedback",
+        "drop policy if exists feasibility_runs_public_read on public.feasibility_runs",
+        "drop policy if exists public_read_model_evaluations on public.model_evaluations",
+        "drop policy if exists market_observations_public_read on public.market_observations",
+        "drop policy if exists public_read_market_observations on public.market_observations",
+        "drop policy if exists freight_forecasts_public_read on public.freight_forecasts",
+        "drop policy if exists public_read_freight_forecasts on public.freight_forecasts",
+        "drop policy if exists vessels_public_read on public.vessels",
+        "drop policy if exists vessel_cargo_compatibility_public_read on public.vessel_cargo_compatibility",
+    ]
+
+    for policy_drop in legacy_policy_drops:
+        assert policy_drop in migration_sql, f"Missing legacy RLS policy removal: {policy_drop}"
+
