@@ -13,6 +13,7 @@ from services.api.app.api.routes import (
     model_evaluation,
     outcomes,
     port_constraints,
+    risk,
     vessel_cargo_compatibility,
     vessels,
 )
