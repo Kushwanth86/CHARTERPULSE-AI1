@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
     supabase_secret_key: str | None = None
+    # Comma-separated Supabase Auth UUIDs allowed to edit shared reference constraints.
+    admin_user_ids: str = ""
 
     model_config = SettingsConfigDict(
         env_file=(str(ENV_FILE), ".env"),
