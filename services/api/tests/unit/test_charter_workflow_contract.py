@@ -1,6 +1,6 @@
 
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from services.api.app.decision.decision_engine import (
     DecisionResponse,
@@ -77,9 +77,10 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     )
 
     cargo_id = uuid4()
+    user_id = UUID("00000000-0000-4000-8000-000000000123")
     monkeypatch.setattr(
         "services.api.app.decision.decision_engine._get_cargo_requirement",
-        lambda value: {
+        lambda value, _user_id: {
             "id": str(cargo_id),
             "quantity_mt": "70000",
             "origin_location_id": "origin-1",
@@ -103,7 +104,8 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
             forecast_id=forecast_id,
             cargo_requirement_id=cargo_id,
             cargo_quantity_mt=70_000,
-        )
+        ),
+        user_id,
     )
 
     # The test forecast has explicit source and route evidence.
