@@ -46,7 +46,7 @@ class ModelEvaluationService:
             "predicted_p50": forecast["p50"],
             "predicted_p90": forecast["p90"],
             **metrics,
-            "actual_provenance": payload.actual_provenance,
+            "actual_provenance": "USER_PROVIDED",
             "source": payload.source,
             "source_reference": payload.source_reference,
             "notes": payload.notes,
