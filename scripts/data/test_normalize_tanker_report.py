@@ -179,6 +179,7 @@ class TankerNormalizationTests(unittest.TestCase):
         self.assertFalse(token_found("The assessment was 312 points.", "12", "worldscale_assessment"))
         self.assertFalse(token_found("The assessment was 12.5 points.", "12", "worldscale_assessment"))
         self.assertFalse(token_found("The assessment was 12,300 points.", "12", "worldscale_assessment"))
+        self.assertFalse(token_found("TCE slipped by $200 to $113,200/day.", "200", "tce_earnings"))
         self.assertFalse(token_found("The assessment was WS10750.", "1075", "worldscale_assessment"))
 
     def test_numeric_token_matching_accepts_formatted_values(self):
