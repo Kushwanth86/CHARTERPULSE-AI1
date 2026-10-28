@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     supabase_secret_key: str | None = None
     # Comma-separated Supabase Auth UUIDs allowed to edit shared reference constraints.
     admin_user_ids: str = ""
+    # Server-side only. Never expose these values to web/frontend code.
+    baltic_exchange_api_key: str | None = None
+    baltic_exchange_feed_id: str | None = None
+    baltic_exchange_api_version: str = "v1.3"
+    baltic_exchange_api_base_url: str = "https://api.balticexchange.com"
+    baltic_exchange_route_map_json: str | None = None
+    baltic_exchange_state_file: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=(str(ENV_FILE), ".env"),
