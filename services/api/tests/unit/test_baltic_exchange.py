@@ -254,13 +254,14 @@ def test_feed_data_adds_valid_inclusive_date_parameters(monkeypatch):
         def read(self):
             return b"[]"
 
-    def fake_urlopen(request, timeout):
-        seen.append(request.full_url)
-        return Response()
+    class Opener:
+        def open(self, request, timeout):
+            seen.append(request.full_url)
+            return Response()
 
     monkeypatch.setattr(
-        "services.api.app.integrations.baltic_exchange.urlopen",
-        fake_urlopen,
+        "services.api.app.integrations.baltic_exchange.build_opener",
+        lambda handler: Opener(),
     )
     client = BalticExchangeClient(
         api_key="test-secret",
