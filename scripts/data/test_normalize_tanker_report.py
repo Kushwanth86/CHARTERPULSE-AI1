@@ -173,6 +173,16 @@ class TankerNormalizationTests(unittest.TestCase):
     def test_route_context_missing_route_returns_empty_string(self):
         self.assertEqual(route_context("The TC1 index rose.", "TD3C"), "")
 
+    def test_numeric_token_matching_rejects_substrings(self):
+        self.assertFalse(token_found("The assessment was 312 points.", "12", "worldscale_assessment"))
+        self.assertFalse(token_found("The assessment was 12.5 points.", "12", "worldscale_assessment"))
+        self.assertFalse(token_found("The assessment was WS10750.", "1075", "worldscale_assessment"))
+
+    def test_numeric_token_matching_accepts_formatted_values(self):
+        self.assertTrue(token_found("The assessment reached WS1,208.13.", "1208.13", "worldscale_assessment"))
+        self.assertTrue(token_found("The rate reached $21.51 million.", "21510000", "voyage_rate"))
+        self.assertTrue(token_found("TCE reached $109,600/day.", "109600", "tce_earnings"))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
