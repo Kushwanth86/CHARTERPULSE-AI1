@@ -131,6 +131,31 @@ class TankerNormalizationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_report(valid, 42)
 
+    def test_historical_parser_ignores_hidden_route_text(self):
+        html = (
+            b"<html><h1>Tanker report - Week 41</h1>"
+            b"<script><p>TC1 fake route WS999</p></script>"
+            b"<p>TC1 value one</p><p>TC2 value two</p>"
+            b"<p>TC3 value three</p><p>TD4 value four</p>"
+            b"<p>TD5 value five</p></html>"
+        )
+        paragraphs = parse_report(html, 41)
+        self.assertEqual(len(paragraphs), 5)
+        self.assertTrue(all("fake route" not in paragraph for paragraph in paragraphs))
+
+    def test_historical_parser_rejects_insufficient_route_paragraphs(self):
+        html = (
+            b"<html><h1>Tanker report - Week 41</h1>"
+            b"<p>TC1 only one route paragraph</p></html>"
+        )
+        with self.assertRaisesRegex(ValueError, "only 1 route-bearing paragraphs"):
+            parse_report(html, 41)
+
+    def test_historical_parser_rejects_unsupported_week(self):
+        from archive_tanker_weekly_sources import fetch_week
+        with self.assertRaisesRegex(ValueError, "Unsupported 2026 report week"):
+            fetch_week(99)
+
     def test_validator_passes(self):
         result = subprocess.run(
             [sys.executable, str(VALIDATOR)],
