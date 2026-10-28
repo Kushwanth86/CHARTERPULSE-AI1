@@ -125,6 +125,38 @@ def token_found(text, value, metric):
     return any(token in source for token in variants(value, metric))
 
 
+def route_context(text, route_code):
+    """Return a route's source span, including following metric sentences.
+
+    Weekly reports may state an index in one sentence and the TCE in the next.
+    This context starts at the route-code mention and ends before the next
+    different route-code mention. A missing route returns an empty string.
+    """
+    text = text or ""
+    route_code = (route_code or "").strip().upper()
+    if not route_code:
+        return ""
+
+    # Baltic tanker route identifiers such as TC1, TC20, and TD3C.
+    route_pattern = re.compile(
+        r"(?<![A-Z0-9])((?:TC|TD)\d{1,3}[A-Z]?)(?![A-Z0-9])",
+        re.IGNORECASE,
+    )
+    matches = list(route_pattern.finditer(text))
+    target = next(
+        (match for match in matches if match.group(1).upper() == route_code),
+        None,
+    )
+    if target is None:
+        return ""
+
+    end = len(text)
+    for match in matches:
+        if match.start() > target.start() and match.group(1).upper() != route_code:
+            end = match.start()
+            break
+    return text[target.start():end].strip()
+
 def main():
     for path in (PARAGRAPHS, CANDIDATES, REPORT):
         if not path.exists():
@@ -207,17 +239,18 @@ def main():
         # Current value numeric and source-token checks.
         current_value = row.get("value") or ""
         parsed_value = dec(current_value)
+        route_text = route_context(row.get("source_text", ""), code)
 
         if parsed_value is None:
             errors.append(
                 f"line {line}: nonnumeric current value {current_value!r}"
             )
-        elif metric in ALLOWED_UNITS and not token_found(
-            row.get("source_text", ""), current_value, metric
+        elif metric in ALLOWED_UNITS and (
+            not route_text or not token_found(route_text, current_value, metric)
         ):
             review_flags.append(
                 f"line {line} {code}/{metric}: "
-                "current value token not found in source text"
+                "current value token not found in route-specific source sentence"
             )
 
         # Weekly-change consistency and source-token checks.
@@ -245,11 +278,14 @@ def main():
             if (
                 dec(change_value) is not None
                 and metric in ALLOWED_UNITS
-                and not token_found(row.get("source_text", ""), change_value, metric)
+                and (
+                    not route_text
+                    or not token_found(route_text, change_value, metric)
+                )
             ):
                 review_flags.append(
                     f"line {line} {code}/{metric}: "
-                    "weekly-change token not found in source text"
+                    "weekly-change token not found in route-specific source sentence"
                 )
         else:
             # A change unit may be present even when no weekly change is reported.
