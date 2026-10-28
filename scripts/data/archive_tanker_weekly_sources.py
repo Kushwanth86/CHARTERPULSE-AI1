@@ -140,7 +140,7 @@ def fetch_week(week, opener=urlopen, now=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--weeks", nargs="+", type=int, default=[40, 41, 42])
+    parser.add_argument("--weeks", nargs="+", type=int, default=[40, 41, 42, 43])
     args = parser.parse_args(argv)
     failures = 0
     for week in args.weeks:
