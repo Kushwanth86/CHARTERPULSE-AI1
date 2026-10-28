@@ -139,8 +139,7 @@ create policy vessel_cargo_compatibility_authenticated_read
   );
 
 -- Shared forecasts must meet the minimum evidence contract. Do not expose
--- legacy/demo rows just because a requester is authenticated. Keep the checks
--- non-throwing for malformed metadata: bound digit-string length before casts.
+-- legacy/demo rows just because a requester is authenticated.
 create policy freight_forecasts_authenticated_read
   on public.freight_forecasts for select to authenticated
   using (
@@ -161,22 +160,27 @@ create policy freight_forecasts_authenticated_read
     and metadata->'source_provenances' <@ '["REAL", "PUBLIC_PROXY"]'::jsonb
     and jsonb_typeof(metadata->'source_labels') = 'array'
     and metadata->'source_labels' <> '[]'::jsonb
-    and coalesce(metadata->>'observation_count', '') ~ '^[0-9]{1,3}
-
-comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
-comment on column public.decision_runs.user_id is 'Supabase Auth owner of this decision run.';
-comment on column public.market_observations.user_id is 'Supabase Auth owner for caller-submitted observations; trusted provider observations may remain NULL.';
-
-    and (metadata->>'observation_count')::integer between 3 and 500
-    and coalesce(metadata->>'distinct_observation_dates', '') ~ '^[0-9]{1,3}
-
-comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
-comment on column public.decision_runs.user_id is 'Supabase Auth owner of this decision run.';
-comment on column public.market_observations.user_id is 'Supabase Auth owner for caller-submitted observations; trusted provider observations may remain NULL.';
-
-    and (metadata->>'distinct_observation_dates')::integer between 3 and 500
-    and (metadata->>'distinct_observation_dates')::integer
-        <= (metadata->>'observation_count')::integer
+    and case
+      when length(coalesce(metadata->>'observation_count', '')) between 1 and 3
+       and coalesce(metadata->>'observation_count', '') !~ '[^0-9]'
+      then (metadata->>'observation_count')::integer between 3 and 500
+      else false
+    end
+    and case
+      when length(coalesce(metadata->>'distinct_observation_dates', '')) between 1 and 3
+       and coalesce(metadata->>'distinct_observation_dates', '') !~ '[^0-9]'
+      then (metadata->>'distinct_observation_dates')::integer between 3 and 500
+      else false
+    end
+    and case
+      when length(coalesce(metadata->>'observation_count', '')) between 1 and 3
+       and coalesce(metadata->>'observation_count', '') !~ '[^0-9]'
+       and length(coalesce(metadata->>'distinct_observation_dates', '')) between 1 and 3
+       and coalesce(metadata->>'distinct_observation_dates', '') !~ '[^0-9]'
+      then (metadata->>'distinct_observation_dates')::integer
+           <= (metadata->>'observation_count')::integer
+      else false
+    end
   );
 
 comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
