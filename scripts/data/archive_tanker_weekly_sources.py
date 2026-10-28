@@ -71,7 +71,7 @@ def parse_report(raw_html, week):
     visible = normalize_text(" ".join(parser.visible_parts))
     title_pattern = re.compile(rf"Tanker\s+report\s*[-–—]\s*Week\s+{week}\b", re.I)
     if not title_pattern.search(visible):
-        raise ValueError(f"Official page does not identify itself as Tanker report Week {week}")
+        raise ValueError(f"Official page does not identify itself as Tanker report Week {week}; visible preview={visible[:240]!r}")
     paragraphs = [p for p in parser.paragraphs if ROUTE_RE.search(p)]
     if len(paragraphs) < 5:
         raise ValueError(f"Week {week}: only {len(paragraphs)} route-bearing paragraphs found; refusing archive")
