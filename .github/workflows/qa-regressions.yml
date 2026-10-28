@@ -6,11 +6,17 @@ on:
       - "**"
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          persist-credentials: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -24,6 +30,31 @@ jobs:
         run: coverage run --branch --source=validate_tanker_candidates -m pytest -q scripts/data/test_normalize_tanker_report.py
       - name: Enforce tanker validator coverage floor
         run: coverage report --show-missing --fail-under=70
+      - name: Archive official historical tanker reports
+        if: github.event_name == 'push' && github.ref == 'refs/heads/tanker-historical-source-verification'
+        run: python scripts/data/archive_tanker_weekly_sources.py --weeks 40 41 42 43
+      - name: Upload source archive evidence
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/tanker-historical-source-verification'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tanker-historical-source-archive
+          path: |
+            data/raw/freight_rates/tanker/tanker_report_week_*_2026.html
+            data/processed/freight_rates/tanker/tanker_week_*_full_paragraphs.csv
+            data/processed/freight_rates/tanker/tanker_week_*_source_manifest.json
+          if-no-files-found: warn
+      - name: Commit archived source snapshots
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/tanker-historical-source-verification'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/raw/freight_rates/tanker/tanker_report_week_*_2026.html data/processed/freight_rates/tanker/tanker_week_*_full_paragraphs.csv data/processed/freight_rates/tanker/tanker_week_*_source_manifest.json
+          if git diff --cached --quiet; then
+            echo "No source archive changes to commit."
+          else
+            git commit -m "Archive official tanker reports for weeks 40-43"
+            git push origin HEAD:tanker-historical-source-verification
+          fi
 
   web:
     runs-on: ubuntu-latest
