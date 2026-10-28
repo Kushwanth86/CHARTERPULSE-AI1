@@ -112,6 +112,7 @@ class BalticExchangeClient:
             raise ValueError(
                 "Baltic Exchange API base URL must use an official Baltic Exchange HTTPS host."
             )
+        self.api_host = parsed_base_url.hostname.casefold()
 
     def _get_json(self, endpoint: str, params: dict[str, str] | None = None) -> Any:
         safe_endpoint = endpoint.strip("/")
@@ -128,7 +129,7 @@ class BalticExchangeClient:
         )
         try:
             opener = build_opener(
-                _SameHostHTTPSRedirectHandler(parsed_base_url.hostname)
+                _SameHostHTTPSRedirectHandler(self.api_host)
             )
             with opener.open(request, timeout=self.timeout_seconds) as response:
                 body = response.read()
