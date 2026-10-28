@@ -5,6 +5,8 @@
 import csv
 import json
 import subprocess
+import contextlib
+import io
 import sys
 import unittest
 from pathlib import Path
@@ -12,8 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/data"))
 from validate_tanker_candidates import (
-    qualifier_supported, route_context, source_direction, supported_route_code, token_found,
+    main as validator_main, qualifier_supported, route_context, source_direction, supported_route_code, token_found,
 )
+from audit_tanker_source_integrity import audit_source
 
 NORMALIZER = ROOT / "scripts/data/normalize_tanker_report.py"
 VALIDATOR = ROOT / "scripts/data/validate_tanker_candidates.py"
@@ -94,6 +97,17 @@ class TankerNormalizationTests(unittest.TestCase):
         after = (CANDIDATES.read_bytes(), REPORT.read_bytes())
 
         self.assertEqual(before, after)
+
+    def test_validator_main_is_exercised_in_process_for_coverage(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(validator_main(), 0)
+
+    def test_saved_source_html_contains_all_extracted_paragraphs(self):
+        result = audit_source()
+        self.assertGreater(result["paragraph_count"], 0)
+        self.assertEqual(result["matched_paragraph_count"], result["paragraph_count"])
+        self.assertEqual(result["missing"], [])
+        self.assertEqual(len(result["html_sha256"]), 64)
 
     def test_validator_passes(self):
         result = subprocess.run(
