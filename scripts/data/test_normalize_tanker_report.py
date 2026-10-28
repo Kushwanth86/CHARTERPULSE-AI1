@@ -112,7 +112,7 @@ class TankerNormalizationTests(unittest.TestCase):
 
     def test_source_audit_normalizes_actual_whitespace(self):
         self.assertEqual(
-            normalize_source_text("  route\\n\\t values   "),
+            normalize_source_text("  route\n\t values   "),
             "route values",
         )
 
