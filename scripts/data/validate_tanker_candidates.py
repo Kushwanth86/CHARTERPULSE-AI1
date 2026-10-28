@@ -125,7 +125,7 @@ def token_found(text, value, metric):
     for token in variants(value, metric):
         # Numeric candidates must match whole numeric/text tokens. Plain substring
         # matching incorrectly lets 12 match 312 or 12.5, and 1075 match 10750.
-        pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])(?![.,]\\d)"
+        pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])(?![.,]\d)"
         if re.search(pattern, source):
             return True
     return False
