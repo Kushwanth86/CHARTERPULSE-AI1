@@ -28,14 +28,14 @@ create policy freight_forecasts_authenticated_read
     and metadata->'source_provenances' <@ '["REAL", "PUBLIC_PROXY"]'::jsonb
     and jsonb_typeof(metadata->'source_labels') = 'array'
     and metadata->'source_labels' <> '[]'::jsonb
-    and case
-      when coalesce(metadata->>'observation_count', '') ~ '^[0-9]+$'
-      then (metadata->>'observation_count')::numeric >= 3
-      else false
-    end
-    and case
-      when coalesce(metadata->>'distinct_observation_dates', '') ~ '^[0-9]+$'
-      then (metadata->>'distinct_observation_dates')::numeric >= 3
-      else false
-    end
+    and coalesce(metadata->>'observation_count', '') ~ '^[0-9]{1,3}
+  );
+
+    and (metadata->>'observation_count')::integer between 3 and 500
+    and coalesce(metadata->>'distinct_observation_dates', '') ~ '^[0-9]{1,3}
+  );
+
+    and (metadata->>'distinct_observation_dates')::integer between 3 and 500
+    and (metadata->>'distinct_observation_dates')::integer
+        <= (metadata->>'observation_count')::integer
   );
