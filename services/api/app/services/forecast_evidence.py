@@ -37,6 +37,17 @@ def _decimal(value: Any) -> Decimal | None:
     return parsed if parsed.is_finite() else None
 
 
+def _is_integer_in_range(value: Any, minimum: int, maximum: int) -> bool:
+    """Validate JSON numeric counters without lossy float conversion."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return minimum <= value <= maximum
+    if isinstance(value, float):
+        return isfinite(value) and value.is_integer() and minimum <= value <= maximum
+    return False
+
+
 def _normalized_class(value: Any) -> str | None:
     if value is None:
         return None
@@ -72,16 +83,9 @@ def decision_forecast_error(forecast: dict[str, Any]) -> str | None:
     count = metadata.get("observation_count")
     distinct_dates = metadata.get("distinct_observation_dates")
     if (
-        isinstance(count, bool)
-        or not isinstance(count, (int, float))
-        or not isfinite(float(count))
-        or int(count) != count
-        or count < 3
-        or isinstance(distinct_dates, bool)
-        or not isinstance(distinct_dates, (int, float))
-        or not isfinite(float(distinct_dates))
-        or int(distinct_dates) != distinct_dates
-        or distinct_dates < 3
+        not _is_integer_in_range(count, 3, 500)
+        or not _is_integer_in_range(distinct_dates, 3, 500)
+        or distinct_dates > count
     ):
         return "At least three observations from distinct dates are required."
 
