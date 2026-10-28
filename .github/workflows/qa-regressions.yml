@@ -15,9 +15,15 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install backend dependencies
-        run: python -m pip install -r services/api/requirements.txt pytest
+        run: python -m pip install -r services/api/requirements.txt pytest coverage
       - name: Run backend tests
         run: pytest -q
+      - name: Audit tanker source transcription against saved HTML
+        run: python scripts/data/audit_tanker_source_integrity.py
+      - name: Run tanker regression tests with branch coverage
+        run: coverage run --branch --source=scripts/data/validate_tanker_candidates.py -m pytest -q scripts/data/test_normalize_tanker_report.py
+      - name: Enforce tanker validator coverage floor
+        run: coverage report --show-missing --fail-under=70
 
   web:
     runs-on: ubuntu-latest
