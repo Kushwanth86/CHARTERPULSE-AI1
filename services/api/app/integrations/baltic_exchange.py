@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import UUID
 
 
@@ -19,6 +19,29 @@ SUPPORTED_USD_PER_METRIC_TON_UNITS = frozenset({"$/MT", "USD/MT"})
 
 class BalticExchangeAPIError(RuntimeError):
     """Safe, user-facing error for Baltic Exchange API failures."""
+
+
+class _SameHostHTTPSRedirectHandler(HTTPRedirectHandler):
+    """Allow redirects only over HTTPS to the exact configured API host."""
+
+    def __init__(self, allowed_host: str):
+        super().__init__()
+        self.allowed_host = allowed_host.casefold()
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlsplit(newurl)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.hostname.casefold() != self.allowed_host
+            or parsed.username
+            or parsed.password
+            or parsed.port not in (None, 443)
+        ):
+            raise BalticExchangeAPIError(
+                "Refusing a Baltic Exchange redirect outside the configured HTTPS API host."
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 class BalticExchangeClient:
@@ -81,6 +104,7 @@ class BalticExchangeClient:
             not in {"api.balticexchange.com", "api-uat.balticexchange.com"}
             or parsed_base_url.username
             or parsed_base_url.password
+            or parsed_base_url.port not in (None, 443)
             or parsed_base_url.path not in {"", "/"}
             or parsed_base_url.query
             or parsed_base_url.fragment
@@ -103,7 +127,10 @@ class BalticExchangeClient:
             method="GET",
         )
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            opener = build_opener(
+                _SameHostHTTPSRedirectHandler(parsed_base_url.hostname)
+            )
+            with opener.open(request, timeout=self.timeout_seconds) as response:
                 body = response.read()
         except HTTPError as exc:
             if exc.code == 401:
