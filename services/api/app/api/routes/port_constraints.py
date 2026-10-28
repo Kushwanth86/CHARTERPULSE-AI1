@@ -1,7 +1,8 @@
 ﻿from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from services.api.app.security.admin_user import get_admin_user_id
 from services.api.app.schemas.port_constraints import (
     PortConstraintCreate,
     PortConstraintResponse,
@@ -20,7 +21,10 @@ service = PortConstraintService()
 
 
 @router.post("", response_model=PortConstraintResponse)
-def create_port_constraint(payload: PortConstraintCreate):
+def create_port_constraint(
+    payload: PortConstraintCreate,
+    _admin_user_id: UUID = Depends(get_admin_user_id),
+):
     return service.create(payload)
 
 

@@ -13,7 +13,7 @@ class MarketObservationCreate(BaseModel):
 
     vessel_class: str | None = None
 
-    value: float = Field(gt=0)
+    value: float = Field(gt=0, allow_inf_nan=False)
     unit: str = Field(min_length=1)
     currency: str | None = None
 

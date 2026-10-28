@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from services.api.app.intelligence.physical_feasibility import PhysicalFeasibilityEngine
 from services.api.app.repositories.cargo_repository import CargoRepository
 from services.api.app.repositories.feasibility_repository import FeasibilityRepository
@@ -19,18 +21,18 @@ class FeasibilityService:
         self.feasibility_repository = FeasibilityRepository()
         self.engine = PhysicalFeasibilityEngine()
 
-    def evaluate(self, payload: FeasibilityRequest) -> dict:
-        cargo = self.cargo_repository.get(payload.cargo_requirement_id)
+    def evaluate(self, payload: FeasibilityRequest, user_id: UUID) -> dict:
+        cargo = self.cargo_repository.get(payload.cargo_requirement_id, user_id)
         if cargo is None:
             raise ValueError("Cargo requirement not found.")
 
-        vessel = self.vessel_repository.get(payload.vessel_id)
+        vessel = self.vessel_repository.get(payload.vessel_id, user_id)
         if vessel is None:
             raise ValueError("Vessel not found.")
 
         origin_constraints = self.constraint_repository.get(payload.origin_port_id)
         destination_constraints = self.constraint_repository.get(payload.destination_port_id)
-        vessel_compatibility = self.compatibility_repository.list_for_vessel(payload.vessel_id)
+        vessel_compatibility = self.compatibility_repository.list_for_vessel(payload.vessel_id, user_id)
 
         result = self.engine.evaluate(
             cargo=cargo,
@@ -46,7 +48,8 @@ class FeasibilityService:
                 "vessel_id": str(payload.vessel_id),
                 "origin_port_id": str(payload.origin_port_id),
                 "destination_port_id": str(payload.destination_port_id),
+                "user_id": str(user_id),
             }
         )
 
-        return self.feasibility_repository.create(result)
+        return self.feasibility_repository.create(result, user_id)

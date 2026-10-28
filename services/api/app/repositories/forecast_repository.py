@@ -1,29 +1,14 @@
-
 from uuid import UUID
 
-from services.api.app.repositories.supabase_client import (
-    get_supabase_admin_client,
-    get_supabase_client,
-)
+from services.api.app.repositories.supabase_client import get_supabase_admin_client
 
 
 class ForecastRepository:
-
     def create(self, payload: dict) -> dict:
         client = get_supabase_admin_client()
-
-        response = (
-            client
-            .table("freight_forecasts")
-            .insert(payload)
-            .execute()
-        )
-
+        response = client.table("freight_forecasts").insert(payload).execute()
         if not response.data:
-            raise RuntimeError(
-                "Failed to store freight forecast."
-            )
-
+            raise RuntimeError("Failed to store freight forecast.")
         return response.data[0]
 
     def list(
@@ -33,39 +18,16 @@ class ForecastRepository:
         vessel_class: str | None = None,
         limit: int = 100,
     ) -> list[dict]:
-        client = get_supabase_client()
-
-        query = (
-            client
-            .table("freight_forecasts")
-            .select("*")
-        )
-
-        # Route matching remains exact.
+        # The application requires an authenticated request at the API layer.
+        # Use the service client here because this repository does not carry the
+        # end-user access token; route/class filters stay exact.
+        client = get_supabase_admin_client()
+        query = client.table("freight_forecasts").select("*")
         if origin_location_id:
-            query = query.eq(
-                "origin_location_id",
-                str(origin_location_id),
-            )
-
+            query = query.eq("origin_location_id", str(origin_location_id))
         if destination_location_id:
-            query = query.eq(
-                "destination_location_id",
-                str(destination_location_id),
-            )
-
-        # Match vessel class without case sensitivity.
+            query = query.eq("destination_location_id", str(destination_location_id))
         if vessel_class:
-            query = query.ilike(
-                "vessel_class",
-                vessel_class.strip(),
-            )
-
-        response = (
-            query
-            .order("generated_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-
+            query = query.ilike("vessel_class", vessel_class.strip())
+        response = query.order("generated_at", desc=True).limit(limit).execute()
         return response.data or []

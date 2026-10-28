@@ -1,5 +1,8 @@
-from fastapi import APIRouter
+from uuid import UUID
 
+from fastapi import APIRouter, Depends
+
+from services.api.app.security.current_user import get_current_user_id
 from services.api.app.schemas.outcomes import (
     DecisionFeedbackCreate,
     DecisionFeedbackResponse,
@@ -24,8 +27,9 @@ router = APIRouter(
 )
 def create_decision_outcome(
     payload: DecisionOutcomeCreate,
+    user_id: UUID = Depends(get_current_user_id),
 ) -> DecisionOutcomeResponse:
-    return outcome_service.create_outcome(payload)
+    return outcome_service.create_outcome(payload, user_id)
 
 
 @router.post(
@@ -34,5 +38,6 @@ def create_decision_outcome(
 )
 def create_decision_feedback(
     payload: DecisionFeedbackCreate,
+    user_id: UUID = Depends(get_current_user_id),
 ) -> DecisionFeedbackResponse:
-    return feedback_service.create_feedback(payload)
+    return feedback_service.create_feedback(payload, user_id)

@@ -1,8 +1,11 @@
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from services.api.app.decision.decision_engine import DecisionResponse
 from services.api.app.services.decision_service import DecisionService
+
+
+USER_ID = UUID("00000000-0000-4000-8000-000000000123")
 
 
 class FakeResponse:
@@ -77,7 +80,7 @@ def test_decision_service_persists_all_workflow_snapshots(monkeypatch):
 
     monkeypatch.setattr(
         "services.api.app.services.decision_service.evaluate_decision",
-        lambda payload: decision,
+        lambda payload, user_id: decision,
     )
     monkeypatch.setattr(
         "services.api.app.services.decision_service.get_supabase_admin_client",
@@ -89,7 +92,8 @@ def test_decision_service_persists_all_workflow_snapshots(monkeypatch):
             "Payload",
             (),
             {"cargo_requirement_id": None},
-        )()
+        )(),
+        USER_ID,
     )
 
     row = fake.table_instance.inserted
@@ -162,7 +166,7 @@ def test_decision_service_raises_when_persistence_returns_no_rows(monkeypatch):
 
     monkeypatch.setattr(
         "services.api.app.services.decision_service.evaluate_decision",
-        lambda payload: decision,
+        lambda payload, user_id: decision,
     )
     monkeypatch.setattr(
         "services.api.app.services.decision_service.get_supabase_admin_client",
@@ -174,5 +178,6 @@ def test_decision_service_raises_when_persistence_returns_no_rows(monkeypatch):
         match="Decision could not be persisted to decision_runs",
     ):
         DecisionService().evaluate(
-            SimpleNamespace(cargo_requirement_id=None)
+            SimpleNamespace(cargo_requirement_id=None),
+            USER_ID,
         )

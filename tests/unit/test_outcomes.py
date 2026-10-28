@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from services.api.app.schemas.outcomes import (
     DecisionFeedbackCreate,
@@ -11,6 +11,9 @@ from services.api.app.services.outcome_service import (
 )
 
 
+USER_ID = UUID("00000000-0000-4000-8000-000000000123")
+
+
 class FakeResponse:
     def __init__(self, data):
         self.data = data
@@ -20,13 +23,31 @@ class FakeTable:
     def __init__(self, row):
         self.row = row
         self.payload = None
+        self.filters = []
+        self.selection = False
+
+    def select(self, fields):
+        self.selection = True
+        return self
+
+    def eq(self, column, value):
+        self.filters.append((column, value))
+        return self
+
+    def limit(self, value):
+        return self
 
     def insert(self, payload):
         self.payload = payload
         return self
 
     def execute(self):
-        return FakeResponse([self.row | self.payload])
+        if self.selection:
+            row_id = str(self.row.get("id", ""))
+            if self.filters and any(column == "id" and value != row_id for column, value in self.filters):
+                return FakeResponse([])
+            return FakeResponse([self.row])
+        return FakeResponse([self.row | (self.payload or {})])
 
 
 class FakeClient:
@@ -35,6 +56,9 @@ class FakeClient:
             name: FakeTable(row)
             for name, row in rows.items()
         }
+        self.tables.setdefault("decision_runs", FakeTable({"id": str(USER_ID), "user_id": str(USER_ID)}))
+        self.tables.setdefault("human_decisions", FakeTable({"id": str(USER_ID), "user_id": str(USER_ID)}))
+        self.tables.setdefault("decision_outcomes", FakeTable({"id": str(USER_ID), "user_id": str(USER_ID)}))
 
     def table(self, name):
         return self.tables[name]
@@ -47,10 +71,11 @@ def test_outcome_service_persists_actual_outcome(monkeypatch):
 
     client = FakeClient(
         {
+            "decision_runs": {"id": str(decision_run_id), "user_id": str(USER_ID)},
             "decision_outcomes": {
                 "id": outcome_id,
                 "recorded_at": recorded_at,
-            }
+            },
         }
     )
     monkeypatch.setattr(
@@ -68,13 +93,13 @@ def test_outcome_service_persists_actual_outcome(monkeypatch):
         source="TEST_SOURCE",
     )
 
-    result = OutcomeService().create_outcome(payload)
+    result = OutcomeService().create_outcome(payload, USER_ID)
 
     assert result.id == outcome_id
     assert result.decision_run_id == decision_run_id
     assert result.actual_freight_rate_per_mt == 28.5
     assert result.actual_total_cost == 199500
-    assert result.provenance == "REAL"
+    assert result.provenance == "USER_PROVIDED"
     assert client.tables["decision_outcomes"].payload["source"] == "TEST_SOURCE"
 
 
@@ -86,6 +111,8 @@ def test_feedback_service_persists_human_feedback(monkeypatch):
 
     client = FakeClient(
         {
+            "decision_runs": {"id": str(decision_run_id), "user_id": str(USER_ID)},
+            "decision_outcomes": {"id": outcome_id, "user_id": str(USER_ID)},
             "decision_feedback": {
                 "id": feedback_id,
                 "created_at": created_at,
@@ -107,7 +134,7 @@ def test_feedback_service_persists_human_feedback(monkeypatch):
         actor_reference="TEST_ACTOR",
     )
 
-    result = FeedbackService().create_feedback(payload)
+    result = FeedbackService().create_feedback(payload, USER_ID)
 
     assert result.id == feedback_id
     assert result.decision_run_id == decision_run_id

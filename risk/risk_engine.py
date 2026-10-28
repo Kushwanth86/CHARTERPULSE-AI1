@@ -1,5 +1,6 @@
 ﻿from dataclasses import dataclass
 import math
+import sys
 import random
 
 
@@ -33,14 +34,26 @@ def simulate_freight_risk(
     seed: int = 42,
 ) -> RiskSimulationResult:
 
-    if not (p10 <= p50 <= p90):
-        raise ValueError("Forecast quantiles must satisfy P10 <= P50 <= P90.")
+    inputs = (p10, p50, p90, cargo_quantity_mt, baseline_rate)
+    if not all(math.isfinite(value) for value in inputs):
+        raise ValueError("Risk inputs must be finite numbers.")
+
+    if not (0 <= p10 <= p50 <= p90) or p50 <= 0 or p90 <= 0:
+        raise ValueError("Forecast quantiles must satisfy 0 <= P10 <= P50 <= P90 and P50 > 0.")
 
     if cargo_quantity_mt <= 0:
         raise ValueError("Cargo quantity must be greater than zero.")
 
     if simulations < 100:
         raise ValueError("At least 100 simulations are required.")
+
+    # Protect both the rate-sample sum and quantity multiplication from float
+    # overflow. The factor provides headroom for the tail of the sampled normal.
+    safe_rate_limit = sys.float_info.max / 64.0
+    if p90 > safe_rate_limit / float(simulations):
+        raise ValueError("Forecast rate exceeds the safe numeric range for Monte Carlo simulation.")
+    if p90 > safe_rate_limit / float(cargo_quantity_mt):
+        raise ValueError("Forecast rate and cargo quantity exceed the safe numeric range for cost calculation.")
 
     # Approximate a normal distribution from the forecast interval.
     # P10/P90 are approximately +/-1.2816 standard deviations.

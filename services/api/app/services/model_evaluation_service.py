@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from services.api.app.intelligence.model_evaluation import ModelEvaluationEngine
 from services.api.app.repositories.model_evaluation_repository import (
     ModelEvaluationRepository,
@@ -19,9 +21,9 @@ class ModelEvaluationService:
     def evaluate_forecast(
         self,
         payload: ForecastEvaluationCreate,
+        user_id: UUID,
     ) -> ForecastEvaluationResponse:
         forecast = self.repository.get_forecast(payload.forecast_id)
-
         if not forecast:
             raise ValueError("Forecast was not found.")
 
@@ -31,7 +33,6 @@ class ModelEvaluationService:
             p50=float(forecast["p50"]),
             p90=float(forecast["p90"]),
         )
-
         row = {
             "forecast_id": str(payload.forecast_id),
             "evaluation_type": "FORECAST_ACCURACY",
@@ -45,7 +46,7 @@ class ModelEvaluationService:
             "predicted_p50": forecast["p50"],
             "predicted_p90": forecast["p90"],
             **metrics,
-            "actual_provenance": payload.actual_provenance,
+            "actual_provenance": "USER_PROVIDED",
             "source": payload.source,
             "source_reference": payload.source_reference,
             "notes": payload.notes,
@@ -56,19 +57,20 @@ class ModelEvaluationService:
                 "forecast_currency": forecast.get("currency"),
             },
         }
-
         return ForecastEvaluationResponse.model_validate(
-            self.repository.create(row)
+            self.repository.create(row, user_id)
         )
 
     def list(
         self,
         *,
+        user_id: UUID,
         model_name: str | None = None,
         model_version: str | None = None,
         limit: int = 100,
     ) -> list[ForecastEvaluationResponse]:
         rows = self.repository.list(
+            user_id=user_id,
             model_name=model_name,
             model_version=model_version,
             limit=limit,
@@ -78,28 +80,29 @@ class ModelEvaluationService:
     def summary(
         self,
         *,
+        user_id: UUID,
         model_name: str | None = None,
         model_version: str | None = None,
         limit: int = 500,
     ) -> ModelEvaluationSummary:
         rows = self.repository.list(
+            user_id=user_id,
             model_name=model_name,
             model_version=model_version,
             limit=limit,
         )
-
         if not rows:
             raise ValueError("No forecast evaluations are available.")
 
         summary = self.engine.summarize(rows)
         summary["model_name"] = model_name or rows[0].get("model_name")
         summary["model_version"] = model_version or rows[0].get("model_version")
-
-        evaluated_times = [row.get("evaluated_at") for row in rows if row.get("evaluated_at")]
+        evaluated_times = [
+            row.get("evaluated_at") for row in rows if row.get("evaluated_at")
+        ]
         if evaluated_times:
             summary["evaluated_from"] = min(evaluated_times)
             summary["evaluated_to"] = max(evaluated_times)
-
         return ModelEvaluationSummary.model_validate(summary)
 
 

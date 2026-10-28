@@ -1,5 +1,6 @@
 
-from uuid import uuid4
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from services.api.app.decision.decision_engine import (
     DecisionResponse,
@@ -56,11 +57,35 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
             "p10": 20.0,
             "p50": 25.0,
             "p90": 30.0,
+            "unit": "USD/MT",
             "origin_location_id": "origin-1",
             "destination_location_id": "destination-1",
             "vessel_class": "PANAMAX",
             "provenance": "FORECAST",
             "model_name": "robust_recency_trend_baseline",
+            "generated_at": "2026-10-26T10:00:00+00:00",
+            "metadata": {
+                "route_scoped": True,
+                "input_provenance": "MARKET_OBSERVATION",
+                "observation_count": 12,
+                "distinct_observation_dates": 12,
+                "source_provenances": ["REAL"],
+                "source_labels": ["Verified test provider"],
+                "latest_observation_at": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+    cargo_id = uuid4()
+    user_id = UUID("00000000-0000-4000-8000-000000000123")
+    monkeypatch.setattr(
+        "services.api.app.decision.decision_engine._get_cargo_requirement",
+        lambda value, _user_id: {
+            "id": str(cargo_id),
+            "quantity_mt": "70000",
+            "origin_location_id": "origin-1",
+            "destination_location_id": "destination-1",
+            "vessel_class": "PANAMAX",
         },
     )
 
@@ -77,15 +102,16 @@ def test_evaluate_decision_builds_route_and_cost_snapshots(monkeypatch):
     response = evaluate_decision(
         DecisionRequest(
             forecast_id=forecast_id,
+            cargo_requirement_id=cargo_id,
             cargo_quantity_mt=70_000,
-        )
+        ),
+        user_id,
     )
 
-    # The restored decision engine identifies the route but does not
-    # claim that the route has been validated.
+    # The test forecast has explicit source and route evidence.
     assert response.route_snapshot == {
         "status": "IDENTIFIED",
-        "validation_status": "NOT_VALIDATED",
+        "validation_status": "SOURCE_MATCHED",
         "origin_location_id": "origin-1",
         "destination_location_id": "destination-1",
         "vessel_class": "PANAMAX",

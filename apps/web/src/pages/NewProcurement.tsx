@@ -14,6 +14,14 @@ import {
   REFERENCE_MATERIALS,
 } from "../data/referenceData";
 import CalendarPicker from "../components/common/CalendarPicker";
+import {
+  isUuid,
+  isValidUnlocode,
+  normalizeCargoType,
+  normalizeCountryCode,
+  validateProcurementInput,
+  vesselClassFromCargoType,
+} from "../utils/procurementValidation";
 
 export type ProcurementContext = {
   cargo: CargoRequirement;
@@ -54,38 +62,7 @@ const defaultDeliveryWindow = () => {
 };
 
 const code = (country: Country) =>
-  String(
-    country.iso2 ??
-      country.country_code ??
-      country.code ??
-      "",
-  )
-    .slice(0, 2)
-    .toUpperCase();
-
-const vesselClassFromCargoType = (
-  value: string,
-): string | null => {
-  const match = value.match(
-    /^DRY_BULK_(PANAMAX|CAPESIZE|HANDYSIZE)$/,
-  );
-
-  return match
-    ? match[1].charAt(0) +
-        match[1].slice(1).toLowerCase()
-    : null;
-};
-
-function isUuid(
-  value: string | null | undefined,
-): boolean {
-  return (
-    typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  );
-}
+  normalizeCountryCode(country.iso2, country.country_code, country.code);
 
 function SearchDropdown({
   label,
@@ -153,10 +130,13 @@ function SearchDropdown({
       className="field search-dropdown"
       ref={root}
     >
-      <label>{label}</label>
+      <label htmlFor={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{label}</label>
 
       <button
+        id={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
         type="button"
+        aria-label={label}
+        aria-expanded={open}
         className={`search-trigger ${open ? "open" : ""}`}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
@@ -245,18 +225,18 @@ export default function NewProcurement({
   const [destinationPorts, setDestinationPorts] =
     useState<Port[]>([]);
 
-  const [originCountry, setOriginCountry] = useState("AU");
+  const [originCountry, setOriginCountry] = useState("");
   const [destinationCountry, setDestinationCountry] =
-    useState("IN");
+    useState("");
 
   const [originPort, setOriginPort] = useState("");
   const [destinationPort, setDestinationPort] =
     useState("");
 
-  const [material, setMaterial] = useState("Coking Coal");
-  const [cargoType, setCargoType] = useState("DRY_BULK");
-  const [quantity, setQuantity] = useState("70000");
-  const [priority, setPriority] = useState("HIGH");
+  const [material, setMaterial] = useState("");
+  const [cargoType, setCargoType] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [priority, setPriority] = useState("NORMAL");
 
   const initialWindow = useMemo(
     () => defaultDeliveryWindow(),
@@ -348,49 +328,63 @@ export default function NewProcurement({
     };
   }, [destinationCountry]);
 
-  const countriesOptions = useMemo(
-    () =>
-      countries
-        .filter((country) => code(country))
-        .map((country) => ({
-          id: code(country),
-          label: country.name,
-          meta: `${code(country)}${
-            country.iso3 ? ` / ${country.iso3}` : ""
-          }`,
-        })),
-    [countries],
-  );
+  const countriesOptions = useMemo(() => {
+    const unique = new Map<string, Option>();
 
-  const materialOptions = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...REFERENCE_MATERIALS,
-          ...cargoRows
-            .map((row) => row.material)
-            .filter(Boolean),
-        ]),
-      ).map((value) => ({
-        id: value,
-        label: value,
-        meta: "Bulk commodity",
-      })),
-    [cargoRows],
-  );
+    for (const country of countries) {
+      const countryCode = code(country);
+      if (!countryCode || unique.has(countryCode)) continue;
+      unique.set(countryCode, {
+        id: countryCode,
+        label: country.name,
+        meta: `${countryCode}${country.iso3 ? ` / ${country.iso3}` : ""}`,
+      });
+    }
+
+    return [...unique.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [countries]);
+
+  const materialOptions = useMemo(() => {
+    const values = [
+      ...REFERENCE_MATERIALS,
+      ...cargoRows.map((row) => row.material ?? ""),
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const uniqueValues = new Map<string, string>();
+
+    for (const value of values) {
+      const key = value.toLocaleLowerCase();
+      if (!uniqueValues.has(key)) uniqueValues.set(key, value);
+    }
+
+    return [...uniqueValues.values()].map((value) => ({
+      id: value,
+      label: value,
+      meta: "Bulk commodity",
+    }));
+  }, [cargoRows]);
 
   const cargoOptions = useMemo(() => {
     const databaseTypes = cargoRows
-      .map((row) => row.cargo_type)
-      .filter(Boolean) as string[];
+      .map((row) => row.cargo_type?.trim() ?? "")
+      .filter(Boolean);
+    const rawTypes = [
+      ...REFERENCE_CARGO_TYPES.map((item) => item.id),
+      ...databaseTypes,
+    ];
+    const uniqueTypes = new Map<string, string>();
 
-    const referenceTypes = REFERENCE_CARGO_TYPES.map(
-      (item) => item.id,
-    );
+    for (const rawType of rawTypes) {
+      const canonicalReference = REFERENCE_CARGO_TYPES.find(
+        (item) => item.id.toUpperCase() === rawType.toUpperCase(),
+      )?.id;
+      const id = canonicalReference ?? rawType;
+      const key = id.toUpperCase();
+      if (!uniqueTypes.has(key)) uniqueTypes.set(key, id);
+    }
 
-    return Array.from(
-      new Set([...referenceTypes, ...databaseTypes]),
-    ).map((id) => {
+    return [...uniqueTypes.values()].map((id) => {
       const reference = REFERENCE_CARGO_TYPES.find(
         (item) => item.id === id,
       );
@@ -405,22 +399,36 @@ export default function NewProcurement({
 
   const originOptions = useMemo(
     () =>
-      originPorts.map((port) => ({
-        id: port.id,
-        label: port.name,
-        meta: port.unlocode || "UN/LOCODE unavailable",
-      })),
-    [originPorts],
+      originPorts
+        .filter(
+          (port) =>
+            isUuid(port.location_id) &&
+            isValidUnlocode(port.unlocode) &&
+            String(port.unlocode ?? "").trim().toUpperCase().startsWith(originCountry),
+        )
+        .map((port) => ({
+          id: port.id,
+          label: port.name,
+          meta: port.unlocode || "UN/LOCODE unavailable",
+        })),
+    [originPorts, originCountry],
   );
 
   const destinationOptions = useMemo(
     () =>
-      destinationPorts.map((port) => ({
-        id: port.id,
-        label: port.name,
-        meta: port.unlocode || "UN/LOCODE unavailable",
-      })),
-    [destinationPorts],
+      destinationPorts
+        .filter(
+          (port) =>
+            isUuid(port.location_id) &&
+            isValidUnlocode(port.unlocode) &&
+            String(port.unlocode ?? "").trim().toUpperCase().startsWith(destinationCountry),
+        )
+        .map((port) => ({
+          id: port.id,
+          label: port.name,
+          meta: port.unlocode || "UN/LOCODE unavailable",
+        })),
+    [destinationPorts, destinationCountry],
   );
 
   const op = originPorts.find(
@@ -444,82 +452,41 @@ export default function NewProcurement({
 
     setError("");
 
+    const validationError = validateProcurementInput({
+      material,
+      cargoType,
+      originCountry,
+      destinationCountry,
+      originPortLocationId: op?.location_id,
+      destinationPortLocationId: dp?.location_id,
+      originPortUnlocode: op?.unlocode,
+      destinationPortUnlocode: dp?.unlocode,
+      quantity,
+      fromDate,
+      toDate,
+      today: formatLocalDate(new Date()),
+      priority,
+    });
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    // The validator has confirmed these selected records are present.
+    if (!op || !dp || !oc || !dc) {
+      setError("Select valid countries and ports before submitting.");
+      return;
+    }
+
     const parsedQuantity = Number(quantity);
-
-    if (
-      !material ||
-      !cargoType ||
-      !oc ||
-      !dc ||
-      !op ||
-      !dp
-    ) {
-      setError(
-        "Select material, cargo type, both countries and both ports.",
-      );
-      return;
-    }
-
-    // Do not submit synthetic or invalid location IDs.
-    if (
-      !isUuid(op.location_id) ||
-      !isUuid(dp.location_id)
-    ) {
-      setError(
-        "The selected ports do not have valid live location IDs. " +
-          "Select ports backed by verified API location data.",
-      );
-      return;
-    }
-
-    if (
-      !quantity.trim() ||
-      !Number.isFinite(parsedQuantity) ||
-      parsedQuantity <= 0 ||
-      !Number.isInteger(parsedQuantity)
-    ) {
-      setError(
-        "Quantity must be a positive whole number of metric tonnes.",
-      );
-      return;
-    }
-
-    if (
-      !fromDate ||
-      !toDate ||
-      Number.isNaN(Date.parse(fromDate)) ||
-      Number.isNaN(Date.parse(toDate))
-    ) {
-      setError("Enter a valid start and end date.");
-      return;
-    }
-
-    const today = formatLocalDate(new Date());
-
-    if (fromDate < today) {
-      setError("From Date cannot be in the past.");
-      return;
-    }
-
-    if (fromDate > toDate) {
-      setError(
-        "From Date must be on or before To Date.",
-      );
-      return;
-    }
-
     setSaving(true);
 
     try {
-      const normalizedCargoType = cargoType.startsWith(
-        "DRY_BULK",
-      )
-        ? "DRY_BULK"
-        : cargoType;
-
       const cargo = await createCargo({
-        cargo_type: normalizedCargoType,
-        material,
+        cargo_type: normalizeCargoType(cargoType),
+        vessel_class: vesselClassFromCargoType(cargoType),
+        material: material.trim(),
         quantity_mt: parsedQuantity,
         origin_location_id: op.location_id,
         destination_location_id: dp.location_id,
@@ -581,14 +548,29 @@ export default function NewProcurement({
         </div>
 
         <div className="form-grid three">
-          <SearchDropdown
-            label="MATERIAL"
-            value={material}
-            options={materialOptions}
-            placeholder="Select bulk commodity"
-            helper="Coking coal, iron ore, thermal coal and other bulk materials."
-            onChange={setMaterial}
-          />
+          <div className="field">
+            <label htmlFor="procurement-material">MATERIAL</label>
+            <input
+              id="procurement-material"
+              type="text"
+              list="procurement-material-options"
+              value={material}
+              onChange={(event) => {
+                setMaterial(event.target.value);
+                setError("");
+              }}
+              placeholder="Enter a commodity or choose a suggestion"
+              autoComplete="off"
+            />
+            <datalist id="procurement-material-options">
+              {materialOptions.map((option) => (
+                <option key={option.id} value={option.id} />
+              ))}
+            </datalist>
+            <small>
+              Enter any commodity. Suggestions include reference examples and prior procurements.
+            </small>
+          </div>
 
           <SearchDropdown
             label="CARGO TYPE"
@@ -596,7 +578,10 @@ export default function NewProcurement({
             options={cargoOptions}
             placeholder="Select standardized cargo type"
             helper="Dry-bulk transport classification."
-            onChange={setCargoType}
+            onChange={(value) => {
+              setCargoType(value);
+              setError("");
+            }}
           />
 
           <div className="field">
@@ -604,12 +589,12 @@ export default function NewProcurement({
             <div className="input-unit">
               <input
                 type="number"
-                min="1"
-                step="1"
+                step="any"
                 value={quantity}
-                onChange={(event) =>
-                  setQuantity(event.target.value)
-                }
+                onChange={(event) => {
+                  setQuantity(event.target.value);
+                  setError("");
+                }}
                 aria-label="Quantity in metric tonnes"
               />
               <span>MT</span>
@@ -628,7 +613,10 @@ export default function NewProcurement({
             value={originCountry}
             options={countriesOptions}
             placeholder="Search country / ISO2 / ISO3"
-            onChange={setOriginCountry}
+            onChange={(value) => {
+              setOriginCountry(value);
+              setError("");
+            }}
           />
 
           <SearchDropdown
@@ -640,9 +628,16 @@ export default function NewProcurement({
                 ? "Search ports in selected country"
                 : "Select origin country first"
             }
-            helper={`${originOptions.length.toLocaleString()} reference/API ports available.`}
-            disabled={!originCountry}
-            onChange={setOriginPort}
+            helper={
+              originOptions.length
+                ? `${originOptions.length.toLocaleString()} valid ports available.`
+                : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
+            }
+            disabled={!originCountry || originOptions.length === 0}
+            onChange={(value) => {
+              setOriginPort(value);
+              setError("");
+            }}
           />
         </div>
 
@@ -652,7 +647,10 @@ export default function NewProcurement({
             value={destinationCountry}
             options={countriesOptions}
             placeholder="Search country / ISO2 / ISO3"
-            onChange={setDestinationCountry}
+            onChange={(value) => {
+              setDestinationCountry(value);
+              setError("");
+            }}
           />
 
           <SearchDropdown
@@ -664,9 +662,16 @@ export default function NewProcurement({
                 ? "Search ports in selected country"
                 : "Select destination country first"
             }
-            helper={`${destinationOptions.length.toLocaleString()} reference/API ports available.`}
-            disabled={!destinationCountry}
-            onChange={setDestinationPort}
+            helper={
+              destinationOptions.length
+                ? `${destinationOptions.length.toLocaleString()} valid ports available.`
+                : "No valid live ports loaded. Reference-only ports cannot be saved; check API connectivity."
+            }
+            disabled={!destinationCountry || destinationOptions.length === 0}
+            onChange={(value) => {
+              setDestinationPort(value);
+              setError("");
+            }}
           />
         </div>
 
@@ -687,14 +692,20 @@ export default function NewProcurement({
             <CalendarPicker
               label="FROM DATE"
               value={fromDate}
-              onChange={setFromDate}
+              onChange={(value) => {
+                setFromDate(value);
+                setError("");
+              }}
             />
 
             <CalendarPicker
               label="TO DATE"
               value={toDate}
               min={fromDate}
-              onChange={setToDate}
+              onChange={(value) => {
+                setToDate(value);
+                setError("");
+              }}
             />
           </div>
 
@@ -724,9 +735,14 @@ export default function NewProcurement({
 
         <div className="form-grid two">
           <div className="field">
-            <label>PRIORITY</label>
+            <label htmlFor="procurement-priority">PRIORITY</label>
             <select
-              onChange={(e) => setQuantity(e.target.value)}
+              id="procurement-priority"
+              value={priority}
+              onChange={(e) => {
+                setPriority(e.target.value);
+                setError("");
+              }}
             >
               <option value="LOW">Low</option>
               <option value="NORMAL">Normal</option>
