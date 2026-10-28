@@ -138,11 +138,46 @@ create policy vessel_cargo_compatibility_authenticated_read
     or (select auth.uid()) = user_id
   );
 
--- Market forecasts derived from trusted/shared data are common to authenticated
--- app users, but must not be available to anonymous visitors.
+-- Shared forecasts must meet the minimum evidence contract. Do not expose
+-- legacy/demo rows just because a requester is authenticated. Keep the checks
+-- non-throwing for malformed metadata: bound digit-string length before casts.
 create policy freight_forecasts_authenticated_read
   on public.freight_forecasts for select to authenticated
-  using (true);
+  using (
+    provenance = 'FORECAST'
+    and unit = 'USD/MT'
+    and origin_location_id is not null
+    and destination_location_id is not null
+    and origin_location_id <> destination_location_id
+    and p10 >= 0
+    and p50 > 0
+    and p90 > 0
+    and p10 <= p50
+    and p50 <= p90
+    and metadata->>'route_scoped' = 'true'
+    and metadata->>'input_provenance' = 'MARKET_OBSERVATION'
+    and jsonb_typeof(metadata->'source_provenances') = 'array'
+    and metadata->'source_provenances' <> '[]'::jsonb
+    and metadata->'source_provenances' <@ '["REAL", "PUBLIC_PROXY"]'::jsonb
+    and jsonb_typeof(metadata->'source_labels') = 'array'
+    and metadata->'source_labels' <> '[]'::jsonb
+    and coalesce(metadata->>'observation_count', '') ~ '^[0-9]{1,3}
+
+comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
+comment on column public.decision_runs.user_id is 'Supabase Auth owner of this decision run.';
+comment on column public.market_observations.user_id is 'Supabase Auth owner for caller-submitted observations; trusted provider observations may remain NULL.';
+
+    and (metadata->>'observation_count')::integer between 3 and 500
+    and coalesce(metadata->>'distinct_observation_dates', '') ~ '^[0-9]{1,3}
+
+comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
+comment on column public.decision_runs.user_id is 'Supabase Auth owner of this decision run.';
+comment on column public.market_observations.user_id is 'Supabase Auth owner for caller-submitted observations; trusted provider observations may remain NULL.';
+
+    and (metadata->>'distinct_observation_dates')::integer between 3 and 500
+    and (metadata->>'distinct_observation_dates')::integer
+        <= (metadata->>'observation_count')::integer
+  );
 
 comment on column public.cargo_requirements.user_id is 'Supabase Auth owner of this procurement requirement; NULL legacy rows are private/unassigned.';
 comment on column public.decision_runs.user_id is 'Supabase Auth owner of this decision run.';
