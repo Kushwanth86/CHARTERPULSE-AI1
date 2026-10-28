@@ -16,7 +16,8 @@ sys.path.insert(0, str(ROOT / "scripts/data"))
 from validate_tanker_candidates import (
     main as validator_main, qualifier_supported, route_context, source_direction, supported_route_code, token_found,
 )
-from audit_tanker_source_integrity import audit_source
+from audit_tanker_source_integrity import audit_source, normalize_text as normalize_source_text
+from archive_tanker_weekly_sources import parse_report
 
 NORMALIZER = ROOT / "scripts/data/normalize_tanker_report.py"
 VALIDATOR = ROOT / "scripts/data/validate_tanker_candidates.py"
@@ -108,6 +109,27 @@ class TankerNormalizationTests(unittest.TestCase):
         self.assertEqual(result["matched_paragraph_count"], result["paragraph_count"])
         self.assertEqual(result["missing"], [])
         self.assertEqual(len(result["html_sha256"]), 64)
+
+    def test_source_audit_normalizes_actual_whitespace(self):
+        self.assertEqual(
+            normalize_source_text("  route\\n\\t values   "),
+            "route values",
+        )
+
+    def test_historical_source_parser_requires_matching_week_and_route_paragraphs(self):
+        valid = (
+            b"<html><h1>Tanker report - Week 41</h1>"
+            b"<p>The TC1 index rose to WS928.</p>"
+            b"<p>The TC20 index rose to $18.40 million.</p>"
+            b"<p>The TC15 index fell to $13.28 million.</p>"
+            b"<p>The TD3C rate climbed to WS1,318.75.</p>"
+            b"<p>The TD20 rate rose to WS981.11.</p></html>"
+        )
+        paragraphs = parse_report(valid, 41)
+        self.assertEqual(len(paragraphs), 5)
+        self.assertIn("TC1", paragraphs[0])
+        with self.assertRaises(ValueError):
+            parse_report(valid, 42)
 
     def test_validator_passes(self):
         result = subprocess.run(
