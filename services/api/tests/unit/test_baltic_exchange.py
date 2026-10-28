@@ -159,13 +159,18 @@ def test_client_uses_key_header_and_documented_feed_paths(monkeypatch):
         def read(self):
             return b'"2026-10-26T12:00:00Z"'
 
-    def fake_urlopen(request, timeout):
-        requests.append((request, timeout))
-        return Response()
+    class Opener:
+        def open(self, request, timeout):
+            requests.append((request, timeout))
+            return Response()
+
+    def fake_build_opener(handler):
+        assert handler.allowed_host == "api.balticexchange.com"
+        return Opener()
 
     monkeypatch.setattr(
-        "services.api.app.integrations.baltic_exchange.urlopen",
-        fake_urlopen,
+        "services.api.app.integrations.baltic_exchange.build_opener",
+        fake_build_opener,
     )
     client = BalticExchangeClient(
         api_key="test-secret",
@@ -186,12 +191,13 @@ def test_client_uses_key_header_and_documented_feed_paths(monkeypatch):
 
 
 def test_unauthorized_error_does_not_leak_api_key(monkeypatch):
-    def fake_urlopen(request, timeout):
-        raise HTTPError(request.full_url, 401, "Unauthorized", None, None)
+    class Opener:
+        def open(self, request, timeout):
+            raise HTTPError(request.full_url, 401, "Unauthorized", None, None)
 
     monkeypatch.setattr(
-        "services.api.app.integrations.baltic_exchange.urlopen",
-        fake_urlopen,
+        "services.api.app.integrations.baltic_exchange.build_opener",
+        lambda handler: Opener(),
     )
     client = BalticExchangeClient(
         api_key="this-is-a-secret",
@@ -204,6 +210,27 @@ def test_unauthorized_error_does_not_leak_api_key(monkeypatch):
     assert "API key" in str(exc.value)
     assert "this-is-a-secret" not in str(exc.value)
 
+
+def test_client_rejects_redirect_to_different_host():
+    from services.api.app.integrations.baltic_exchange import (
+        BalticExchangeAPIError,
+        _SameHostHTTPSRedirectHandler,
+    )
+
+    handler = _SameHostHTTPSRedirectHandler("api.balticexchange.com")
+    with pytest.raises(BalticExchangeAPIError, match="redirect"):
+        handler.redirect_request(
+            None, None, 302, "Found", {}, "https://evil.example/steal"
+        )
+
+
+def test_client_rejects_nonstandard_api_port():
+    with pytest.raises(ValueError, match="official Baltic Exchange"):
+        BalticExchangeClient(
+            api_key="test-secret",
+            feed_identifier="FDS123",
+            base_url="https://api.balticexchange.com:8443",
+        )
 
 
 def test_client_rejects_untrusted_base_url_before_sending_key():
