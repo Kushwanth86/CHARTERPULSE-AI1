@@ -176,6 +176,7 @@ class TankerNormalizationTests(unittest.TestCase):
     def test_numeric_token_matching_rejects_substrings(self):
         self.assertFalse(token_found("The assessment was 312 points.", "12", "worldscale_assessment"))
         self.assertFalse(token_found("The assessment was 12.5 points.", "12", "worldscale_assessment"))
+        self.assertFalse(token_found("The assessment was 12,300 points.", "12", "worldscale_assessment"))
         self.assertFalse(token_found("The assessment was WS10750.", "1075", "worldscale_assessment"))
 
     def test_numeric_token_matching_accepts_formatted_values(self):
