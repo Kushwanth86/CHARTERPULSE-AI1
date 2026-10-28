@@ -139,7 +139,7 @@ def route_context(text, route_code):
 
     # Baltic tanker route identifiers such as TC1, TC20, and TD3C.
     route_pattern = re.compile(
-        r"(?<![A-Z0-9])([A-Z]{2,4}\d{1,3}[A-Z]?)(?![A-Z0-9])",
+        r"(?<![A-Z0-9])((?:TC|TD)\d{1,3}[A-Z]?)(?![A-Z0-9])",
         re.IGNORECASE,
     )
     matches = list(route_pattern.finditer(text))
