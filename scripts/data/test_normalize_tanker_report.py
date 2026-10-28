@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/data"))
-from validate_tanker_candidates import route_context, token_found
+from validate_tanker_candidates import (\n    qualifier_supported, route_context, source_direction, supported_route_code, token_found,\n)
 
 NORMALIZER = ROOT / "scripts/data/normalize_tanker_report.py"
 VALIDATOR = ROOT / "scripts/data/validate_tanker_candidates.py"
@@ -103,7 +103,7 @@ class TankerNormalizationTests(unittest.TestCase):
         )
 
         self.assertIn("Errors: 0", result.stdout)
-        self.assertIn("Numeric token review flags: 0", result.stdout)
+        self.assertIn("Semantic/source review flags:", result.stdout)
         self.assertIn("PASS:", result.stdout)
 
     def test_metric_units_are_consistent(self):
@@ -183,6 +183,27 @@ class TankerNormalizationTests(unittest.TestCase):
         self.assertTrue(token_found("The assessment reached WS1,208.13.", "1208.13", "worldscale_assessment"))
         self.assertTrue(token_found("The rate reached $21.51 million.", "21510000", "voyage_rate"))
         self.assertTrue(token_found("TCE reached $109,600/day.", "109600", "tce_earnings"))
+    def test_weekly_change_direction_is_bound_to_local_numeric_phrase(self):
+        self.assertEqual(source_direction("The TC1 index climbed by 92 points to WS1075.", "92", "worldscale_assessment"), "up")
+        self.assertEqual(source_direction("The TCE slipped by $200 to $113,200/day.", "200", "tce_earnings"), "down")
+        self.assertIsNone(source_direction("The index changed by 92 points.", "92", "worldscale_assessment"))
+
+    def test_directional_sign_conflicts_can_be_detected(self):
+        text = "The TC1 index fell by 92 points to WS1075."
+        self.assertEqual(source_direction(text, "92", "worldscale_assessment"), "down")
+        self.assertNotEqual(source_direction(text, "92", "worldscale_assessment"), "up")
+
+    def test_qualifier_semantics_use_source_wording(self):
+        self.assertTrue(qualifier_supported("TCE was about $406,769/day.", "406769", "tce_earnings", "about"))
+        self.assertTrue(qualifier_supported("TCE was just under $148,500/day.", "148500", "tce_earnings", "just_under"))
+        self.assertTrue(qualifier_supported("The index reached almost WS810.", "810", "worldscale_assessment", "almost"))
+        self.assertFalse(qualifier_supported("TCE was $406,769/day.", "406769", "tce_earnings", "about"))
+        self.assertFalse(qualifier_supported("TCE was almost $406,769/day.", "406769", "tce_earnings", "exact"))
+
+    def test_unrecognized_route_formats_are_explicitly_reviewable(self):
+        self.assertTrue(supported_route_code("TC1"))
+        self.assertTrue(supported_route_code("TD3C"))
+        self.assertFalse(supported_route_code("AFRAX"))
 
 
 if __name__ == "__main__":
