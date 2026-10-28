@@ -79,7 +79,16 @@ def _upsert_observations(observations: list[dict[str, Any]]) -> tuple[int, int]:
         if existing.data:
             existing_count += 1
             continue
-        response = client.table("market_observations").insert(observation).execute()
+        try:
+            response = client.table("market_observations").insert(observation).execute()
+        except Exception as exc:
+            # The partial unique index is the concurrency-safe final guard.
+            # If another importer inserted the same Baltic reference between
+            # our read and insert, count it as already present and continue.
+            if getattr(exc, "code", None) == "23505":
+                existing_count += 1
+                continue
+            raise
         if not response.data:
             raise RuntimeError(
                 f"Supabase did not confirm insert for {reference}; rerun safely after checking the database."
