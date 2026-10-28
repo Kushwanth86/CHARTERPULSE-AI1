@@ -1,0 +1,33 @@
+{
+  "mode": "LOCAL_NORMALIZATION_ONLY",
+  "supabase_writes": false,
+  "report_date": "2026-10-23",
+  "report_week": "2026-W43",
+  "source": "Baltic Exchange Weekly Tanker Report",
+  "route_count": 26,
+  "metric_observation_rows": 51,
+  "metrics": {
+    "worldscale_assessment": 20,
+    "tce_earnings": 25,
+    "voyage_rate": 6
+  },
+  "vessel_classes": {
+    "clean_tanker": 22,
+    "VLCC": 8,
+    "Suezmax": 8,
+    "Aframax": 13
+  },
+  "qualifiers": {
+    "exact": 34,
+    "rounded": 6,
+    "about": 2,
+    "just_under": 3,
+    "just_over": 2,
+    "almost": 1,
+    "over": 1,
+    "under": 2
+  },
+  "review_status": "REVIEW_REQUIRED_SINGLE_WEEK",
+  "note": "Manually structured from report text. Values with qualifiers such as about, under, over, almost, and just_under are approximations. Weekly change values are kept separate from current values. Review all rows before analytical use.",
+  "output_file": "data/processed/freight_rates/tanker/tanker_week_43_normalized_candidates.csv"
+}
