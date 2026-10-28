@@ -125,6 +125,21 @@ def token_found(text, value, metric):
     return any(token in source for token in variants(value, metric))
 
 
+def route_sentence(text, route_code):
+    """Return the sentence naming a route, rather than its whole shared paragraph.
+
+    Conservative by design: when the route is not found in a sentence, return
+    an empty string so the validator raises a review flag.
+    """
+    # Avoid splitting decimal values such as WS1,208.13.
+    sentences = re.split(r"(?<=[.!?])\\s+(?=[A-Z])", text or "")
+    code = re.escape(route_code.strip())
+    for sentence in sentences:
+        if re.search(rf"(?<![A-Z0-9]){code}(?![A-Z0-9])", sentence, re.IGNORECASE):
+            return sentence
+    return ""
+
+
 def main():
     for path in (PARAGRAPHS, CANDIDATES, REPORT):
         if not path.exists():
@@ -207,17 +222,18 @@ def main():
         # Current value numeric and source-token checks.
         current_value = row.get("value") or ""
         parsed_value = dec(current_value)
+        route_text = route_sentence(row.get("source_text", ""), code)
 
         if parsed_value is None:
             errors.append(
                 f"line {line}: nonnumeric current value {current_value!r}"
             )
-        elif metric in ALLOWED_UNITS and not token_found(
-            row.get("source_text", ""), current_value, metric
+        elif metric in ALLOWED_UNITS and (
+            not route_text or not token_found(route_text, current_value, metric)
         ):
             review_flags.append(
                 f"line {line} {code}/{metric}: "
-                "current value token not found in source text"
+                "current value token not found in route-specific source sentence"
             )
 
         # Weekly-change consistency and source-token checks.
@@ -245,11 +261,14 @@ def main():
             if (
                 dec(change_value) is not None
                 and metric in ALLOWED_UNITS
-                and not token_found(row.get("source_text", ""), change_value, metric)
+                and (
+                    not route_text
+                    or not token_found(route_text, change_value, metric)
+                )
             ):
                 review_flags.append(
                     f"line {line} {code}/{metric}: "
-                    "weekly-change token not found in source text"
+                    "weekly-change token not found in route-specific source sentence"
                 )
         else:
             # A change unit may be present even when no weekly change is reported.
