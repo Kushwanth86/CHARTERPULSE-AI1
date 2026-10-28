@@ -132,7 +132,7 @@ def route_sentence(text, route_code):
     an empty string so the validator raises a review flag.
     """
     # Avoid splitting decimal values such as WS1,208.13.
-    sentences = re.split(r"(?<=[.!?])\\s+(?=[A-Z])", text or "")
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text or "")
     code = re.escape(route_code.strip())
     for sentence in sentences:
         if re.search(rf"(?<![A-Z0-9]){code}(?![A-Z0-9])", sentence, re.IGNORECASE):
