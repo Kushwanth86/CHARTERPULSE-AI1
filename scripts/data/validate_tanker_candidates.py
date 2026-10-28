@@ -163,6 +163,80 @@ def route_context(text, route_code):
             break
     return text[target.start():end].strip()
 
+
+DIRECTION_CUES = {
+    "up": re.compile(r"\b(?:rose|rise|risen|rising|climbed|climb|climbs|climbing|gained|gain|gains|gaining|jumped|jump|increased|increase|increases|increasing|added|up|higher|strengthened|firmed)\b", re.I),
+    "down": re.compile(r"\b(?:fell|fall|fallen|falling|dropped|drop|drops|dropping|slipped|slip|slips|slipping|tumbled|tumble|eased|ease|eases|easing|declined|decline|decreased|decrease|down|lower|weaker|weakened)\b", re.I),
+}
+APPROX_CUES = {
+    "about": re.compile(r"\b(?:about|around|approximately|approx|roughly)\b", re.I),
+    "almost": re.compile(r"\balmost\b", re.I),
+    "just_under": re.compile(r"\bjust under\b", re.I),
+    "just_over": re.compile(r"\bjust over\b", re.I),
+    "over": re.compile(r"\b(?:over|more than|above)\b", re.I),
+    "under": re.compile(r"\b(?:under|below|less than)\b", re.I),
+    "rounded": re.compile(r"(?:\brounded\b|\$?\d+(?:\.\d+)?\s*(?:m|million|bn|billion)\b)", re.I),
+}
+
+
+def _matching_spans(text, value, metric):
+    source = normalize(text)
+    spans = []
+    for token in sorted(variants(value, metric), key=len, reverse=True):
+        pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])(?![.,]\d)"
+        spans.extend((m.start(), m.end()) for m in re.finditer(pattern, source))
+    return sorted(set(spans))
+
+
+def source_direction(text, value, metric):
+    """Return up/down only when a nearby directional cue supports it; else None."""
+    source = normalize(text)
+    spans = _matching_spans(source, value, metric)
+    results = set()
+    for start, end in spans:
+        left = max(0, start - 85)
+        window = source[left:min(len(source), end + 25)]
+        candidates = [(m.start(), "up") for m in DIRECTION_CUES["up"].finditer(window)]
+        candidates += [(m.start(), "down") for m in DIRECTION_CUES["down"].finditer(window)]
+        if not candidates:
+            continue
+        cue_pos, direction = min(candidates, key=lambda item: abs(item[0] - (start - left)))
+        if abs(cue_pos - (start - left)) <= 75:
+            results.add(direction)
+    return next(iter(results)) if len(results) == 1 else None
+
+
+def qualifier_supported(text, value, metric, qualifier):
+    """Return True/False/None for supported, contradicted, or ambiguous qualifier."""
+    if not qualifier:
+        return None
+    source = normalize(text)
+    spans = _matching_spans(source, value, metric)
+    if not spans:
+        return None
+    cues = set()
+    for start, end in spans:
+        window = source[max(0, start - 35):min(len(source), end + 18)]
+        for name, pattern in APPROX_CUES.items():
+            if pattern.search(window):
+                cues.add(name)
+    if qualifier == "exact":
+        return not bool(cues & {"about", "almost", "just_under", "just_over", "over", "under"})
+    if qualifier == "approximate":
+        return True if cues & {"about", "rounded"} else None
+    if qualifier == "about":
+        return "about" in cues
+    if qualifier in {"almost", "just_under", "just_over", "over", "under"}:
+        return qualifier in cues
+    if qualifier == "rounded":
+        return "rounded" in cues
+    return None
+
+
+def supported_route_code(route_code):
+    """Current Baltic route-code contract; unknown formats must be reviewed."""
+    return bool(re.fullmatch(r"(?:TC|TD)\d{1,3}[A-Z]?", (route_code or "").strip().upper()))
+
 def main():
     for path in (PARAGRAPHS, CANDIDATES, REPORT):
         if not path.exists():
@@ -247,6 +321,11 @@ def main():
         parsed_value = dec(current_value)
         route_text = route_context(row.get("source_text", ""), code)
 
+        if not supported_route_code(code):
+            review_flags.append(
+                f"line {line} {code}: unsupported route-code format; manual review required"
+            )
+
         if parsed_value is None:
             errors.append(
                 f"line {line}: nonnumeric current value {current_value!r}"
@@ -258,6 +337,19 @@ def main():
                 f"line {line} {code}/{metric}: "
                 "current value token not found in route-specific source sentence"
             )
+
+        if parsed_value is not None and route_text:
+            qualifier_result = qualifier_supported(route_text, current_value, metric, value_qualifier)
+            if qualifier_result is False:
+                review_flags.append(
+                    f"line {line} {code}/{metric}: value qualifier "
+                    f"{value_qualifier!r} conflicts with nearby source wording"
+                )
+            elif qualifier_result is None and value_qualifier != "exact":
+                review_flags.append(
+                    f"line {line} {code}/{metric}: value qualifier "
+                    f"{value_qualifier!r} could not be semantically verified"
+                )
 
         # Weekly-change consistency and source-token checks.
         if change_value:
@@ -293,6 +385,37 @@ def main():
                     f"line {line} {code}/{metric}: "
                     "weekly-change token not found in route-specific source sentence"
                 )
+
+            parsed_change = dec(change_value)
+            if parsed_change is not None and parsed_change != 0 and route_text:
+                detected_direction = source_direction(route_text, change_value, metric)
+                expected_direction = "up" if parsed_change > 0 else "down"
+                if detected_direction and detected_direction != expected_direction:
+                    errors.append(
+                        f"line {line} {code}/{metric}: weekly-change sign "
+                        f"{expected_direction!r} conflicts with source direction "
+                        f"{detected_direction!r}"
+                    )
+                elif detected_direction is None:
+                    review_flags.append(
+                        f"line {line} {code}/{metric}: weekly-change direction "
+                        "could not be bound confidently to the numeric token"
+                    )
+
+            if parsed_change is not None and route_text:
+                change_qualifier_result = qualifier_supported(
+                    route_text, change_value, metric, change_qualifier
+                )
+                if change_qualifier_result is False:
+                    review_flags.append(
+                        f"line {line} {code}/{metric}: weekly-change qualifier "
+                        f"{change_qualifier!r} conflicts with nearby source wording"
+                    )
+                elif change_qualifier_result is None:
+                    review_flags.append(
+                        f"line {line} {code}/{metric}: weekly-change qualifier "
+                        f"{change_qualifier!r} could not be semantically verified"
+                    )
         else:
             # A change unit may be present even when no weekly change is reported.
             # A qualifier, however, must not imply a change value that is absent.
@@ -353,7 +476,7 @@ def main():
     print(f"Unique routes: {len(routes)}")
     print(f"Duplicate route/metric pairs: {len(duplicates)}")
     print(f"Errors: {len(errors)}")
-    print(f"Numeric token review flags: {len(review_flags)}")
+    print(f"Semantic/source review flags: {len(review_flags)}")
 
     for error in errors[:50]:
         print("ERROR:", error)
@@ -366,8 +489,8 @@ def main():
         return 1
 
     print(
-        "PASS: structural and source-token checks passed. "
-        "Numeric token matching is not full semantic verification."
+        "PASS: structural checks passed. Review flags must be resolved before "
+        "downstream use; token matching is not full semantic verification."
     )
     return 0
 
