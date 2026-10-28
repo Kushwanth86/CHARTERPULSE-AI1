@@ -11,7 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/data"))
-from validate_tanker_candidates import (\n    qualifier_supported, route_context, source_direction, supported_route_code, token_found,\n)
+from validate_tanker_candidates import (
+    qualifier_supported, route_context, source_direction, supported_route_code, token_found,
+)
 
 NORMALIZER = ROOT / "scripts/data/normalize_tanker_report.py"
 VALIDATOR = ROOT / "scripts/data/validate_tanker_candidates.py"
