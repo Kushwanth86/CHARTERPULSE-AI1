@@ -115,14 +115,15 @@ class Supabase:
         load_env()
 
         self.url = require_env("SUPABASE_URL").rstrip("/")
-        self.key = (
-            os.environ.get("SUPABASE_SECRET_KEY", "").strip()
-            or os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip()
-        )
+        # This loader performs privileged bulk writes. A publishable key is
+        # intended for client access and must never be used as a write credential
+        # for this trusted ingestion script.
+        self.key = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
 
         if not self.key:
             raise RuntimeError(
-                "Neither SUPABASE_SECRET_KEY nor SUPABASE_PUBLISHABLE_KEY is configured."
+                "SUPABASE_SECRET_KEY is required for UN/LOCODE ingestion; "
+                "SUPABASE_PUBLISHABLE_KEY is not accepted for bulk writes."
             )
 
         self.base = f"{self.url}/rest/v1"

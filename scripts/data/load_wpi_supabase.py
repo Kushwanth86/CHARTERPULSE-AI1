@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -107,10 +108,13 @@ def positive_number(value: object) -> float | None:
 
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
-    return number if number > 0 else None
+    # NaN compares false to both positive/negative checks; positive infinity
+    # compares greater than zero. Explicit finiteness is required for safe
+    # vessel constraints and downstream feasibility calculations.
+    return number if math.isfinite(number) and number > 0 else None
 
 
 def yes_no(value: object) -> bool | None:
