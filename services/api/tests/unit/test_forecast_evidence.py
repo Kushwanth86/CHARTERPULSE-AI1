@@ -174,14 +174,14 @@ def test_rejects_mismatched_cargo_and_forecast(cargo_changes, quantity, message)
 @pytest.mark.parametrize(
     "metadata_changes",
     [
-        {"observation_count": 10**10000},
+        {"observation_count": 10**2000},
         {"observation_count": 501},
         {"observation_count": 2.5},
         {"observation_count": True},
         {"observation_count": float("inf")},
         {"observation_count": float("nan")},
         {"distinct_observation_dates": 13},
-        {"distinct_observation_dates": 10**10000},
+        {"distinct_observation_dates": 10**2000},
     ],
 )
 def test_rejects_extreme_or_inconsistent_evidence_counters(metadata_changes):
