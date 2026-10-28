@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/data"))
-from validate_tanker_candidates import route_sentence, token_found
+from validate_tanker_candidates import route_context, token_found
 
 NORMALIZER = ROOT / "scripts/data/normalize_tanker_report.py"
 VALIDATOR = ROOT / "scripts/data/validate_tanker_candidates.py"
@@ -135,31 +135,43 @@ class TankerNormalizationTests(unittest.TestCase):
                     )
 
 
-    def test_route_sentence_excludes_neighboring_route_values(self):
+    def test_route_context_excludes_neighboring_route_values(self):
         paragraph = (
             "The TC1 index climbed by 92 points to WS1075. "
             "For the TC20 run, the index edged up by $168,800 to $21.51 million."
         )
-        tc1 = route_sentence(paragraph, "TC1")
-        tc20 = route_sentence(paragraph, "TC20")
+        tc1 = route_context(paragraph, "TC1")
+        tc20 = route_context(paragraph, "TC20")
 
         self.assertIn("WS1075", tc1)
         self.assertNotIn("21.51 million", tc1)
         self.assertIn("21.51 million", tc20)
         self.assertNotIn("WS1075", tc20)
 
-    def test_route_sentence_keeps_decimal_worldscale_values_intact(self):
+    def test_route_context_keeps_decimal_worldscale_values_intact(self):
         paragraph = (
             "The TD3C route dropped 88 points to WS1,208.13, "
             "giving a daily TCE of $1,287,851."
         )
-        sentence = route_sentence(paragraph, "TD3C")
+        context = route_context(paragraph, "TD3C")
 
-        self.assertIn("WS1,208.13", sentence)
-        self.assertTrue(token_found(sentence, "1208.13", "worldscale_assessment"))
+        self.assertIn("WS1,208.13", context)
+        self.assertTrue(token_found(context, "1208.13", "worldscale_assessment"))
 
-    def test_route_sentence_missing_route_returns_empty_string(self):
-        self.assertEqual(route_sentence("The TC1 index rose.", "TD3C"), "")
+    def test_route_context_includes_following_tce_sentence(self):
+        paragraph = (
+            "In the Mediterranean, the TC6 index climbed by 72 points to WS526. "
+            "The corresponding Baltic round-trip TCE rose by $20,700 to $109,600/day. "
+            "The TC23 index gained 71 points to WS390."
+        )
+        tc6 = route_context(paragraph, "TC6")
+
+        self.assertIn("$109,600/day", tc6)
+        self.assertNotIn("TC23", tc6)
+        self.assertTrue(token_found(tc6, "109600", "tce_earnings"))
+
+    def test_route_context_missing_route_returns_empty_string(self):
+        self.assertEqual(route_context("The TC1 index rose.", "TD3C"), "")
 
 
 if __name__ == "__main__":
