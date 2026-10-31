@@ -284,3 +284,65 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 @media(max-width:820px) { .dashboard-heading { align-items:flex-start; flex-direction:column; } .dashboard-status-grid { grid-template-columns:1fr; } .dashboard-hero { min-height:0; } .hero-orbit { display:none; } }
 @media(max-width:560px) { .module-grid { grid-template-columns:1fr 1fr; } .module-card { min-height:190px; padding:13px; } .dashboard-section-title { align-items:flex-start; flex-direction:column; } .flow-steps { justify-content:flex-start; } .flow-steps i { display:none; } .dashboard-heading .primary-button { width:100%; } }
 @media(max-width:380px) { .module-grid { grid-template-columns:1fr; } }
+
+/* CharterPulse domain design tokens: maritime operations + executive decision support */
+:root {
+  --cp-bg: #08131d;
+  --cp-bg-soft: #0b1a26;
+  --cp-sidebar: #091722;
+  --cp-surface: #102330;
+  --cp-surface-raised: #142c3a;
+  --cp-surface-hover: #1a3948;
+  --cp-line: #294653;
+  --cp-line-strong: #416a79;
+  --cp-text: #f1f6f8;
+  --cp-text-soft: #c1d1d7;
+  --cp-muted: #a4bac3;
+  --cp-faint: #8ba5af;
+  --cp-teal: #35c3b0;
+  --cp-teal-bright: #68dfd0;
+  --cp-blue: #78bce8;
+  --cp-gold: #e0bd70;
+  --cp-green: #69d6a2;
+  --cp-red: #f18e98;
+  --cp-warning: #f0c36f;
+  --cp-font-display: "Manrope", "DM Sans", sans-serif;
+  --cp-font-body: "DM Sans", "Manrope", sans-serif;
+  --cp-shadow: 0 18px 48px rgba(0,0,0,.24);
+  font-family: var(--cp-font-body);
+}
+html, body, #root { font-family: var(--cp-font-body); }
+body, button, input, select, textarea { font-family: var(--cp-font-body); }
+h1,h2,h3,h4,.brand strong,.metric-card strong,.metric strong,.dashboard-status-card strong,.module-card strong { font-family:var(--cp-font-display); }
+body { font-size:14px; line-height:1.6; letter-spacing:.005em; }
+.page-heading h1 { font-family:var(--cp-font-display); font-size:clamp(27px,2.3vw,34px); line-height:1.15; font-weight:750; letter-spacing:-.04em; }
+.page-heading p { max-width:76ch; color:#b7c9d0; font-size:13px; line-height:1.7; letter-spacing:0; }
+.section-head h2,.dashboard-section-title h2,.dashboard-flow h2 { font-family:var(--cp-font-display); font-size:17px; line-height:1.35; font-weight:700; letter-spacing:-.025em; }
+.eyebrow,.nav-group-title,.field label,.calendar-picker > label,.metric-card span,.metric span,.dashboard-status-card small,.module-card small,.top-status { color:#9bb5bf; font-size:9px; font-weight:700; line-height:1.4; letter-spacing:.14em; }
+.nav-item { color:#c0d0d6; font-size:12px; font-weight:600; line-height:1.45; }
+.brand strong { font-size:16px; font-weight:800; letter-spacing:-.025em; }
+.brand span { color:#a0b9c2; font-size:8px; font-weight:650; letter-spacing:.16em; line-height:1.5; }
+.enterprise-card,.dashboard-status-card,.module-card,.metric-card,.metric { color:var(--cp-text); }
+.dashboard-status-card p,.module-card p,.hero-command p,.field-note,.field small,.calendar-picker small { color:#b2c5cc; font-size:12px; line-height:1.65; }
+.metric-card strong,.metric strong { font-family:var(--cp-font-display); font-size:clamp(20px,1.8vw,25px); line-height:1.2; font-weight:750; letter-spacing:-.035em; }
+.metric-card small,.metric small { color:#afc2ca; font-size:11px; line-height:1.5; }
+.field label,.calendar-picker > label { color:#b6c9d0; font-size:10px; font-weight:700; letter-spacing:.09em; }
+.field input,.field select,select,input[type="month"],input[type="date"],input[type="number"] { color:#f0f6f8; background:#0a1b27; border-color:#3b5b68; font-size:13px; }
+.field input::placeholder { color:#91aab4; }
+.primary-button { background:linear-gradient(135deg,#159d91,#087e7d); color:#fff; font-family:var(--cp-font-display); font-weight:800; letter-spacing:.055em; }
+.secondary-button { color:#e0edf0; border-color:#52717e; background:#183442; }
+.data-badge.real { color:#a0f1c8; background:#103528; border-color:#398463; }
+.data-badge.proxy { color:#b4e5ff; background:#12384b; border-color:#4685a3; }
+.data-badge.simulated { color:#ffe2a1; background:#3a301c; border-color:#8a7440; }
+.error-banner { color:#ffd4d7; background:#3a2029; border-color:#98515d; }
+/* Intent-specific semantic surfaces */
+:root { --cp-market-accent:#78bce8; --cp-forecast-accent:#68dfd0; --cp-procurement-accent:#e0bd70; --cp-risk-accent:#f0c36f; --cp-governance-accent:#9fbcf3; --cp-success:#69d6a2; --cp-danger:#f18e98; }
+[data-page="market"],.market-intelligence { --page-accent:var(--cp-market-accent); }
+[data-page="forecast"],.freight-forecast { --page-accent:var(--cp-forecast-accent); }
+[data-page="procurement"],.new-procurement { --page-accent:var(--cp-procurement-accent); }
+[data-page="risk"],.what-if-risk { --page-accent:var(--cp-risk-accent); }
+[data-page="governance"],.decision-history { --page-accent:var(--cp-governance-accent); }
+:where([data-page],.market-intelligence,.freight-forecast,.new-procurement,.what-if-risk,.decision-history) .eyebrow { color:var(--page-accent,var(--cp-teal-bright)); }
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible { outline:2px solid #8deee2; outline-offset:3px; }
+@media(max-width:820px) { body { font-size:13px; } .page-heading h1 { font-size:26px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms!important; animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; } }
