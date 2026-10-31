@@ -37,7 +37,7 @@ class VisibleTextParser(HTMLParser):
 
 
 def normalize_text(text):
-    return re.sub(r"\\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def audit_source(html_path=HTML_PATH, paragraphs_path=PARAGRAPHS_PATH):

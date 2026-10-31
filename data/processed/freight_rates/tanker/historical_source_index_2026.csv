@@ -1,0 +1,5 @@
+report_week,report_date,source_url,source_type,archive_status,numeric_verification_status,allowed_use
+2026-W40,2026-10-02,https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-40.html,official_publisher_page,source_linked_not_archived,not_verified,manual_review_only
+2026-W41,2026-10-09,https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-41.html,official_publisher_page,source_linked_not_archived,not_verified,manual_review_only
+2026-W42,2026-10-16,https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-42.html,official_publisher_page,source_linked_not_archived,not_verified,manual_review_only
+2026-W43,2026-10-23,https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-43.html,official_publisher_page,existing_local_source_requires_audit,not_verified,manual_review_only
