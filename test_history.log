@@ -1,0 +1,31 @@
+# CharterPulse QA Test History
+
+Date: 2026-10-24
+Branch: fix/freightos-no-quote-error-handling
+Commit under test: fa928be5144f6a3d9d73dcbbce6f72a588ae44cf
+Workflow: https://github.com/Kushwanth86/CHARTERPULSE-AI1/actions/runs/40089633261
+
+## Automated verification
+
+- PASS — Backend pytest job completed successfully in GitHub Actions.
+- PASS — Frontend regression test step completed successfully after CI was changed to run `tests/*.test.ts`, including API resilience tests.
+- PASS — TypeScript / Vite production build completed successfully.
+- PASS — Existing tests cover transient 502 retries, non-retry of POST, forecast API failure propagation, no-quote error messaging, 404 no-retry, 502/503/504 retry-and-recover, and no retries for 400/404/422.
+
+## Live verification attempts
+
+- BLOCKED — Direct HTTP requests to the Render API could not resolve DNS from the execution environment (`Temporary failure in name resolution`). No live API response is claimed.
+- BLOCKED — Browser-based interaction testing (UI layout, console errors, rapid clicks, offline/throttled network) was not available in this execution environment.
+- KNOWN PRODUCTION GAP — Render deployment history still identifies commit `314c706e6ce173a629e02c6dca5e16610efa0190` as live; PR #29's backend changes are not deployed to production.
+- KNOWN OBSERVED FAILURE — Earlier production logs show BEANR -> USLGB, container40, quantity=1 returned HTTP 502 three times. This is prior evidence, not a fresh request from this run.
+
+## Remaining release-gating checks
+
+1. Merge/deploy PR #29 only with authorization.
+2. Confirm Render is live on the merged commit.
+3. Repeat the exact BEANR -> USLGB request and verify no-quote is a single 404, not repeated 502 responses.
+4. Verify at least one route/container combination with a real provider quote returns a valid estimate; never substitute a mock quote for live-provider proof.
+5. Exercise the bulk freight forecast route/vessel-class permutations and verify mismatch handling remains explicit.
+6. Run browser E2E permutations with console/network capture, multi-click, invalid inputs, offline and throttled-network states.
+
+No live workflow is marked fully verified until these release-gating checks pass.

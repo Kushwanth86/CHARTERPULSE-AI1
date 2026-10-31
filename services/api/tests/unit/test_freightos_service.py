@@ -8,6 +8,7 @@ from services.api.app.services import freightos_service as freightos_module
 from services.api.app.services.freightos_service import (
     _CACHE_LOCK,
     _ESTIMATE_CACHE,
+    FreightosNoQuoteError,
     FreightosRateLimitError,
     FreightosService,
     FreightosServiceError,
@@ -75,7 +76,7 @@ def test_estimate_reports_no_quotes_without_a_price(service):
         "services.api.app.services.freightos_service.urlopen",
         return_value=mock_response(payload),
     ):
-        with pytest.raises(FreightosServiceError, match="No freight quotes are available"):
+        with pytest.raises(FreightosNoQuoteError, match="No freight quotes are available"):
             service.estimate(
                 origin="CNSZX",
                 destination="KRPUS",

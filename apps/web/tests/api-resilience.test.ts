@@ -62,3 +62,85 @@ test("request does not retry non-idempotent POST operations", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("formatApiError explains missing Freightos quotes without exposing raw API JSON", async () => {
+  const { formatApiError } = await import("../src/api.ts");
+  const message = formatApiError(
+    new Error('API 404: {"detail":"No freight quotes are available for this route and container type."}'),
+    "Fallback",
+  );
+
+  assert.match(message, /No freight quotes are available/);
+  assert.match(message, /Try another port pair or container type/);
+  assert.match(message, /No rate has been assumed/);
+  assert.doesNotMatch(message, /API 404|detail/);
+});
+
+test("request does not retry a valid no-quote 404 response", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({ detail: "No freight quotes are available for this route and container type." }),
+      { status: 404, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const { request } = await import("../src/api.ts");
+    await assert.rejects(
+      () => request("/api/v1/freightos/estimate?origin=BEANR&destination=USLGB&loadtype=container40&quantity=1"),
+      /API 404:/,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("request retries each transient gateway status and returns a later success", async () => {
+  const originalFetch = globalThis.fetch;
+
+  for (const status of [502, 503, 504]) {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      if (calls === 1) return new Response("temporary gateway failure", { status });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const { request } = await import("../src/api.ts");
+      const result = await request<{ ok: boolean }>("/health");
+      assert.deepEqual(result, { ok: true }, `status ${status}`);
+      assert.equal(calls, 2, `status ${status} should retry once before success`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+});
+
+test("request does not retry client validation or no-result statuses", async () => {
+  const originalFetch = globalThis.fetch;
+
+  for (const status of [400, 404, 422]) {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("client error", { status });
+    }) as typeof fetch;
+
+    try {
+      const { request } = await import("../src/api.ts");
+      await assert.rejects(() => request("/health"), new RegExp(`API ${status}:`));
+      assert.equal(calls, 1, `status ${status} must not retry`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+});
